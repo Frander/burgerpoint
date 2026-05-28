@@ -64,3 +64,8 @@ export interface OrderItem {
   unit_price: number;
   notes: string | null;
 }
+
+/** Una categoría con sus productos disponibles (para el storefront). */
+export interface MenuCategory extends Category {
+  products: Product[];
+}
