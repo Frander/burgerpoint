@@ -42,12 +42,10 @@ export async function updateSession(request: NextRequest) {
   } = await supabase.auth.getUser();
 
   const { pathname } = request.nextUrl;
-  const isAdmin = pathname.startsWith("/admin");
-  const isLogin = pathname === "/admin/login";
 
-  if (isAdmin && !isLogin && !user) {
+  if (pathname.startsWith("/admin") && !user) {
     const url = request.nextUrl.clone();
-    url.pathname = "/admin/login";
+    url.pathname = "/login";
     return NextResponse.redirect(url);
   }
 

@@ -69,3 +69,8 @@ export interface OrderItem {
 export interface MenuCategory extends Category {
   products: Product[];
 }
+
+/** Un pedido con sus líneas (para el panel y la cocina). */
+export interface OrderWithItems extends Order {
+  order_items: OrderItem[];
+}
