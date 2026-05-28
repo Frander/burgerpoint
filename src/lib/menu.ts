@@ -35,6 +35,8 @@ export async function getMenu(): Promise<MenuCategory[]> {
   const byCategory = new Map<string, Product[]>();
   for (const product of (products ?? []) as Product[]) {
     if (!product.category_id) continue;
+    // Oculta productos que rastrean inventario y están sin existencias.
+    if (product.track_stock && product.stock <= 0) continue;
     const list = byCategory.get(product.category_id) ?? [];
     list.push(product);
     byCategory.set(product.category_id, list);

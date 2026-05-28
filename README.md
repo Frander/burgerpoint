@@ -34,7 +34,10 @@ Rutas:
 1. Crea un proyecto en [supabase.com](https://supabase.com).
 2. En **Settings → API** copia `Project URL` y `anon key` a `.env.local`
    (`NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`).
-3. En **SQL Editor** ejecuta `supabase/migrations/0001_init.sql` (crea tablas, RLS y Realtime).
+3. En **SQL Editor** ejecuta, en orden, las migraciones de `supabase/migrations/`:
+   - `0001_init.sql` — tablas, RLS y Realtime
+   - `0002_grants.sql` — privilegios de los roles (anon/authenticated/service_role)
+   - `0003_inventory.sql` — triggers de inventario (ajuste de stock y descuento por venta)
 4. (Opcional) Ejecuta `supabase/seed.sql` para cargar un menú de ejemplo.
 5. Crea el primer usuario del staff en **Authentication → Users → Add user**.
    Luego, en **SQL Editor**, ponle rol admin:
@@ -70,7 +73,7 @@ supabase/
 ## Roadmap
 
 - **Fase 0** ✅ Setup (proyecto, Supabase, estructura, esquema)
-- **Fase 1** — Menú público + carrito + pedido por WhatsApp
-- **Fase 2** — Backoffice: CRUD de menú + gestión de pedidos
-- **Fase 3** — Cocina (KDS) en tiempo real
-- **Fase 4** — Inventario + reportes
+- **Fase 1** ✅ Menú público + carrito + pedido por WhatsApp
+- **Fase 2** ✅ Backoffice: CRUD de menú + gestión de pedidos
+- **Fase 3** ✅ Cocina (KDS) en tiempo real
+- **Fase 4** ✅ Inventario + reportes
