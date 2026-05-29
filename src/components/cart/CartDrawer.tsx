@@ -45,7 +45,17 @@ export default function CartDrawer({
       type,
       address,
       notes,
-      items: items.map((i) => ({ productId: i.productId, quantity: i.quantity })),
+      items: items.map((i) => ({
+        productId: i.productId,
+        quantity: i.quantity,
+        notes: i.notes,
+        modifiers: i.modifiers.map((m) => ({
+          modifier_id: m.id,
+          name: m.name,
+          extra_price: m.extra_price,
+          group_name: m.group_name,
+        })),
+      })),
     });
 
     if (!result.ok || !result.code) {
@@ -143,20 +153,30 @@ export default function CartDrawer({
               ) : (
                 items.map((item) => (
                   <div
-                    key={item.productId}
-                    className="flex items-center gap-3 rounded-lg border border-black/10 p-3 dark:border-white/10"
+                    key={item.lineId}
+                    className="flex items-start gap-3 rounded-lg border border-black/10 p-3 dark:border-white/10"
                   >
                     <div className="flex-1">
                       <p className="text-sm font-medium">{item.name}</p>
-                      <p className="text-xs text-black/60 dark:text-white/60">
-                        {formatMoney(item.price)} c/u
+                      {item.modifiers.length > 0 && (
+                        <p className="text-xs text-black/60 dark:text-white/60">
+                          {item.modifiers.map((m) => m.name).join(", ")}
+                        </p>
+                      )}
+                      {item.notes && (
+                        <p className="text-xs italic text-black/50 dark:text-white/50">
+                          “{item.notes}”
+                        </p>
+                      )}
+                      <p className="mt-0.5 text-xs text-black/60 dark:text-white/60">
+                        {formatMoney(item.unitPrice)} c/u
                       </p>
                     </div>
                     <div className="flex items-center gap-2">
                       <button
                         type="button"
                         aria-label="Quitar uno"
-                        onClick={() => decrement(item.productId)}
+                        onClick={() => decrement(item.lineId)}
                         className="h-7 w-7 rounded-full border border-black/15 leading-none dark:border-white/15"
                       >
                         −
@@ -167,7 +187,7 @@ export default function CartDrawer({
                       <button
                         type="button"
                         aria-label="Agregar uno"
-                        onClick={() => increment(item.productId)}
+                        onClick={() => increment(item.lineId)}
                         className="h-7 w-7 rounded-full border border-black/15 leading-none dark:border-white/15"
                       >
                         +
@@ -175,7 +195,7 @@ export default function CartDrawer({
                       <button
                         type="button"
                         aria-label="Eliminar"
-                        onClick={() => remove(item.productId)}
+                        onClick={() => remove(item.lineId)}
                         className="ml-1 text-sm text-red-600"
                       >
                         🗑

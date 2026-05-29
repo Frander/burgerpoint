@@ -1,10 +1,4 @@
-"use client";
-
-import { useState } from "react";
-import { useCart } from "@/components/cart/CartProvider";
-import { formatMoney } from "@/lib/format";
 import ProductCard from "@/components/storefront/ProductCard";
-import CartDrawer from "@/components/cart/CartDrawer";
 import type { MenuCategory } from "@/lib/types";
 
 export default function Storefront({
@@ -14,13 +8,18 @@ export default function Storefront({
   menu: MenuCategory[];
   previewMode: boolean;
 }) {
-  const { itemCount, total } = useCart();
-  const [cartOpen, setCartOpen] = useState(false);
-
   return (
     <div className="mx-auto w-full max-w-2xl px-4 pb-28">
       <header className="py-8">
-        <h1 className="text-3xl font-bold tracking-tight">🍔 Burger Point</h1>
+        <a
+          href="/"
+          className="text-sm text-black/50 hover:underline dark:text-white/50"
+        >
+          ← Inicio
+        </a>
+        <h1 className="mt-2 text-3xl font-bold tracking-tight">
+          🍔 Burger Point
+        </h1>
         <p className="mt-1 text-sm text-black/60 dark:text-white/60">
           Ticul, Yucatán · Entrega 20–35 min
         </p>
@@ -73,26 +72,6 @@ export default function Storefront({
           Acceso al panel administrativo
         </a>
       </footer>
-
-      {itemCount > 0 && (
-        <div className="fixed inset-x-0 bottom-0 z-20 border-t border-black/10 bg-[var(--background)] p-4 dark:border-white/10">
-          <div className="mx-auto flex max-w-2xl items-center justify-between gap-4">
-            <span className="text-sm">
-              {itemCount} {itemCount === 1 ? "producto" : "productos"} ·{" "}
-              <span className="font-semibold">{formatMoney(total)}</span>
-            </span>
-            <button
-              type="button"
-              onClick={() => setCartOpen(true)}
-              className="rounded-full bg-black px-5 py-2.5 text-sm font-medium text-white dark:bg-white dark:text-black"
-            >
-              Ver pedido
-            </button>
-          </div>
-        </div>
-      )}
-
-      <CartDrawer open={cartOpen} onClose={() => setCartOpen(false)} />
     </div>
   );
 }

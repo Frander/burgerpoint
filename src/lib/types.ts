@@ -32,14 +32,40 @@ export interface Product {
   stock: number;
   sort_order: number;
   created_at: string;
+  /** Transitorio: indica si el producto tiene grupos de opciones (storefront). */
+  has_modifiers?: boolean;
 }
 
 export interface Modifier {
   id: string;
+  group_id: string | null;
   product_id: string;
   name: string;
   extra_price: number;
+  sort_order: number;
   created_at: string;
+}
+
+export interface ModifierGroup {
+  id: string;
+  product_id: string;
+  name: string;
+  /** Mínimo de opciones a elegir; >= 1 lo hace obligatorio. */
+  min_select: number;
+  /** Máximo de opciones; 1 = elección única (radio), >1 = múltiple. */
+  max_select: number;
+  sort_order: number;
+  created_at: string;
+}
+
+/** Un grupo con sus opciones (para el detalle de producto y el admin). */
+export interface ModifierGroupWithOptions extends ModifierGroup {
+  modifiers: Modifier[];
+}
+
+/** Un producto con sus grupos de opciones (para el detalle del storefront). */
+export interface ProductWithModifiers extends Product {
+  modifier_groups: ModifierGroupWithOptions[];
 }
 
 export interface Order {

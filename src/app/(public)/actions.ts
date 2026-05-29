@@ -5,10 +5,18 @@ import { createClient } from "@/lib/supabase/server";
 import { isSupabaseConfigured } from "@/lib/supabase/config";
 import type { OrderType, Product } from "@/lib/types";
 
+export interface NewOrderModifier {
+  modifier_id?: string;
+  name: string;
+  extra_price: number;
+  group_name?: string;
+}
+
 export interface NewOrderItem {
   productId: string;
   quantity: number;
   notes?: string;
+  modifiers?: NewOrderModifier[];
 }
 
 export interface NewOrderInput {
@@ -80,16 +88,67 @@ export async function createOrder(
     if (p.available) productMap.set(p.id, p);
   }
 
+  // Precios autoritativos de los modificadores elegidos (no se confía en el
+  // cliente). Se traen por id y se valida que pertenezcan al producto correcto.
+  const modifierIds = Array.from(
+    new Set(
+      input.items.flatMap((i) =>
+        (i.modifiers ?? [])
+          .map((m) => m.modifier_id)
+          .filter((id): id is string => Boolean(id)),
+      ),
+    ),
+  );
+
+  interface DbModifier {
+    id: string;
+    product_id: string;
+    name: string;
+    extra_price: number;
+  }
+  const modifierMap = new Map<string, DbModifier>();
+  if (modifierIds.length > 0) {
+    const { data: mods, error: modErr } = await supabase
+      .from("modifiers")
+      .select("id, product_id, name, extra_price")
+      .in("id", modifierIds);
+    if (modErr) {
+      return { ok: false, error: "No se pudieron validar las opciones." };
+    }
+    for (const m of (mods ?? []) as DbModifier[]) {
+      modifierMap.set(m.id, m);
+    }
+  }
+
+  // Construye cada línea con su precio recalculado y sus opciones.
   const lineItems = input.items
     .map((item) => {
       const product = productMap.get(item.productId);
       if (!product) return null;
+
+      const chosen = (item.modifiers ?? [])
+        .map((m) => {
+          if (!m.modifier_id) return null;
+          const db = modifierMap.get(m.modifier_id);
+          // Debe existir y pertenecer a este producto.
+          if (!db || db.product_id !== product.id) return null;
+          return {
+            modifier_name: db.name,
+            extra_price: db.extra_price,
+            group_name: m.group_name ?? null,
+          };
+        })
+        .filter((x): x is NonNullable<typeof x> => x !== null);
+
+      const extras = chosen.reduce((sum, m) => sum + m.extra_price, 0);
+
       return {
         product_id: product.id,
         product_name: product.name,
         quantity: item.quantity,
-        unit_price: product.price,
-        notes: item.notes ?? null,
+        unit_price: product.price + extras,
+        notes: item.notes?.trim() || null,
+        modifiers: chosen,
       };
     })
     .filter((x): x is NonNullable<typeof x> => x !== null);
@@ -119,12 +178,34 @@ export async function createOrder(
     return { ok: false, error: "No se pudo crear el pedido." };
   }
 
-  const { error: itemsErr } = await supabase
-    .from("order_items")
-    .insert(lineItems.map((i) => ({ ...i, order_id: orderId })));
+  // Inserta cada línea y, si tiene opciones, sus order_item_modifiers.
+  for (const line of lineItems) {
+    const { modifiers, ...itemRow } = line;
+    const { data: inserted, error: itemErr } = await supabase
+      .from("order_items")
+      .insert({ ...itemRow, order_id: orderId })
+      .select("id")
+      .single();
 
-  if (itemsErr) {
-    return { ok: false, error: "No se pudieron guardar los productos." };
+    if (itemErr || !inserted) {
+      return { ok: false, error: "No se pudieron guardar los productos." };
+    }
+
+    if (modifiers.length > 0) {
+      const { error: modErr } = await supabase
+        .from("order_item_modifiers")
+        .insert(
+          modifiers.map((m) => ({
+            order_item_id: inserted.id,
+            modifier_name: m.modifier_name,
+            extra_price: m.extra_price,
+            group_name: m.group_name,
+          })),
+        );
+      if (modErr) {
+        return { ok: false, error: "No se pudieron guardar las opciones." };
+      }
+    }
   }
 
   return { ok: true, code, total };

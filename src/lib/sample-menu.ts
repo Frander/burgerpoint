@@ -1,4 +1,4 @@
-import type { MenuCategory } from "@/lib/types";
+import type { MenuCategory, ModifierGroupWithOptions } from "@/lib/types";
 
 /**
  * Menú de ejemplo para previsualizar el storefront antes de conectar Supabase.
@@ -111,3 +111,43 @@ export const SAMPLE_MENU: MenuCategory[] = [
     ],
   },
 ];
+
+/**
+ * Grupos de opciones de ejemplo (modo preview), indexados por id de producto.
+ * Refleja la estructura de modifier_groups + modifiers de la base real.
+ */
+export const SAMPLE_MODIFIER_GROUPS: Record<
+  string,
+  ModifierGroupWithOptions[]
+> = {
+  "prod-doble": [
+    {
+      id: "g-sin",
+      product_id: "prod-doble",
+      name: "Sin",
+      min_select: 0,
+      max_select: 5,
+      sort_order: 1,
+      created_at: "",
+      modifiers: [
+        { id: "m-sin-cebolla", group_id: "g-sin", product_id: "prod-doble", name: "Sin cebolla", extra_price: 0, sort_order: 1, created_at: "" },
+        { id: "m-sin-tomate", group_id: "g-sin", product_id: "prod-doble", name: "Sin tomate", extra_price: 0, sort_order: 2, created_at: "" },
+        { id: "m-sin-lechuga", group_id: "g-sin", product_id: "prod-doble", name: "Sin lechuga", extra_price: 0, sort_order: 3, created_at: "" },
+      ],
+    },
+    {
+      id: "g-extra",
+      product_id: "prod-doble",
+      name: "Agrégale",
+      min_select: 0,
+      max_select: 3,
+      sort_order: 2,
+      created_at: "",
+      modifiers: [
+        { id: "m-tocino", group_id: "g-extra", product_id: "prod-doble", name: "Tocino", extra_price: 15, sort_order: 1, created_at: "" },
+        { id: "m-queso", group_id: "g-extra", product_id: "prod-doble", name: "Queso extra", extra_price: 10, sort_order: 2, created_at: "" },
+        { id: "m-huevo", group_id: "g-extra", product_id: "prod-doble", name: "Huevo", extra_price: 10, sort_order: 3, created_at: "" },
+      ],
+    },
+  ],
+};

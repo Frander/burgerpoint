@@ -3,7 +3,7 @@
 Documento para retomar el trabajo en otra sesión. Resume qué está hecho, qué
 falta de tu lado, y los próximos pasos sugeridos.
 
-_Última actualización: 29 may 2026_
+_Última actualización: 29 may 2026 (opciones/modificadores de producto)_
 
 ---
 
@@ -31,7 +31,9 @@ Supabase (Postgres + Auth + Realtime + Storage) · Vercel (hosting).
 Cada fase tiene su commit en git (`git log --oneline`).
 
 ### Rutas principales
-- `/` — menú público / pedido del cliente
+- `/` — landing/portada (bienvenida + botón "Ver menú y pedir")
+- `/menu` — menú público / pedido del cliente
+- `/menu/[id]` — detalle de producto con sus opciones (modificadores)
 - `/login` — acceso del staff
 - `/admin` — panel (pedidos, cocina, menú, inventario, reportes)
 
@@ -54,7 +56,19 @@ Para que el sistema funcione 100% con tu Supabase, faltan estos pasos manuales:
    ```
    Sin esto, el panel `/admin` te rebota al login.
 
-3. **(Opcional) Configurar WhatsApp.** En `.env.local`, pon el número del
+3. **Correr la migración de Storage (fotos de productos).** En Supabase → SQL
+   Editor, ejecuta `supabase/migrations/0004_storage.sql`. Crea el bucket público
+   `product-images` y sus políticas (lectura pública, subida solo para staff).
+   _Sin esto, subir una foto en admin/menu falla con "bucket not found"._
+
+4. **Correr la migración de opciones/modificadores.** En Supabase → SQL Editor,
+   ejecuta `supabase/migrations/0005_modifiers.sql`. Crea la tabla
+   `modifier_groups` y extiende `modifiers`. _Sin esto, el menú funciona pero
+   los productos no pueden tener grupos de opciones._
+   - (Opcional) Vuelve a correr `supabase/seed.sql` para cargar un grupo de
+     opciones de ejemplo en la "Hamburguesa Doble".
+
+5. **(Opcional) Configurar WhatsApp.** En `.env.local`, pon el número del
    restaurante en `NEXT_PUBLIC_WHATSAPP_PHONE` (formato internacional sin `+`,
    ej. `5219991234567`). Si lo dejas vacío, el pedido abre WhatsApp sin número
    predefinido.
@@ -85,17 +99,21 @@ Poner el sitio en línea con un dominio real.
 - Configurar dominio.
 - Verificar que Realtime y los Server Actions funcionan en producción.
 
-### 2. Fotos de productos (Supabase Storage) 📸
-- Crear bucket público `product-images` en Supabase.
-- Subida de imagen en el formulario de producto (admin/menu).
-- Mostrar `image_url` en las tarjetas del storefront (usar `next/image`,
-  agregar el host de Supabase a `images.remotePatterns` en `next.config.ts`).
+### 2. Fotos de productos (Supabase Storage) ✅ HECHO (29 may 2026)
+- Bucket público `product-images` vía `0004_storage.sql` (correr en SQL Editor).
+- Subida de imagen en alta y edición de producto (`ProductManager` + helper
+  `src/lib/upload.ts`); miniatura en la lista del admin.
+- `image_url` se muestra en las tarjetas del storefront con `next/image`.
+- `next.config.ts` agrega el host de Supabase a `images.remotePatterns`.
 
-### 3. Modificadores / extras en el storefront 🧀
-- El esquema ya tiene la tabla `modifiers` y `order_item_modifiers`.
-- Falta: UI para gestionarlos en admin/menu y para elegirlos al agregar al
-  carrito (ej. "extra queso +$10", "sin cebolla").
-- Ajustar `CartProvider` y `createOrder` para incluir modificadores y su precio.
+### 3. Modificadores / extras en el storefront 🧀 ✅ HECHO (29 may 2026)
+- Migración `0005_modifiers.sql`: tabla `modifier_groups` (min/max_select) +
+  `modifiers` cuelga de un grupo. Página de detalle `/menu/[id]` con grupos de
+  opciones (radio/checkbox, obligatorio, mín/máx), cantidad y comentarios.
+- Admin: `/admin/menu/[id]` (botón "Opciones" en cada producto) para crear
+  grupos y opciones con precio extra.
+- `CartProvider` maneja líneas con modificadores; `createOrder` recalcula
+  precios server-side y guarda `order_item_modifiers`.
 
 ### 4. Prueba end-to-end del inventario 🧪
 Tras correr la 0003: registrar stock → simular una venta → confirmar que el
@@ -119,7 +137,10 @@ trigger descuenta. (Puedo hacerlo yo vía REST cuando avises.)
 ```
 src/
   app/
-    (public)/page.tsx        # storefront (server) + actions.ts (crear pedido)
+    (public)/layout.tsx      # CartProvider + CartBar (carrito compartido)
+    (public)/page.tsx        # landing/portada (botón → /menu)
+    (public)/menu/page.tsx   # storefront (server); actions.ts (crear pedido)
+    (public)/menu/[id]/      # detalle de producto con opciones (ProductDetail)
     login/page.tsx           # login
     admin/
       layout.tsx             # shell del panel (nav + usuario + logout)

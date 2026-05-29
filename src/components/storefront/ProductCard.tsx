@@ -1,15 +1,29 @@
 "use client";
 
+import Image from "next/image";
+import Link from "next/link";
 import { useCart } from "@/components/cart/CartProvider";
 import { formatMoney } from "@/lib/format";
 import type { Product } from "@/lib/types";
 
 export default function ProductCard({ product }: { product: Product }) {
-  const { items, add, increment, decrement } = useCart();
-  const inCart = items.find((i) => i.productId === product.id);
+  const { items, addProduct, increment, decrement } = useCart();
+  // Línea simple (sin opciones) de este producto.
+  const inCart = items.find(
+    (i) => i.productId === product.id && i.modifiers.length === 0 && !i.notes,
+  );
 
   return (
     <div className="flex items-start gap-4 rounded-xl border border-black/10 p-4 dark:border-white/10">
+      {product.image_url && (
+        <Image
+          src={product.image_url}
+          alt={product.name}
+          width={80}
+          height={80}
+          className="h-20 w-20 shrink-0 rounded-lg object-cover"
+        />
+      )}
       <div className="flex-1">
         <h3 className="font-semibold">{product.name}</h3>
         {product.description && (
@@ -21,12 +35,19 @@ export default function ProductCard({ product }: { product: Product }) {
       </div>
 
       <div className="shrink-0">
-        {inCart ? (
+        {product.has_modifiers ? (
+          <Link
+            href={`/menu/${product.id}`}
+            className="inline-block rounded-full bg-black px-4 py-2 text-sm font-medium text-white dark:bg-white dark:text-black"
+          >
+            Elegir opciones
+          </Link>
+        ) : inCart ? (
           <div className="flex items-center gap-2">
             <button
               type="button"
               aria-label="Quitar uno"
-              onClick={() => decrement(product.id)}
+              onClick={() => decrement(inCart.lineId)}
               className="h-8 w-8 rounded-full border border-black/15 text-lg leading-none dark:border-white/15"
             >
               −
@@ -37,7 +58,7 @@ export default function ProductCard({ product }: { product: Product }) {
             <button
               type="button"
               aria-label="Agregar uno"
-              onClick={() => increment(product.id)}
+              onClick={() => increment(inCart.lineId)}
               className="h-8 w-8 rounded-full border border-black/15 text-lg leading-none dark:border-white/15"
             >
               +
@@ -46,7 +67,7 @@ export default function ProductCard({ product }: { product: Product }) {
         ) : (
           <button
             type="button"
-            onClick={() => add(product)}
+            onClick={() => addProduct(product)}
             className="rounded-full bg-black px-4 py-2 text-sm font-medium text-white dark:bg-white dark:text-black"
           >
             Agregar

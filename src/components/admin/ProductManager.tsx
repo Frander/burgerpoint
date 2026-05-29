@@ -1,6 +1,8 @@
 "use client";
 
 import { useState, useTransition } from "react";
+import Image from "next/image";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
   createProduct,
@@ -9,7 +11,76 @@ import {
   type ActionResult,
 } from "@/app/admin/menu/actions";
 import { formatMoney } from "@/lib/format";
+import { uploadProductImage } from "@/lib/upload";
 import type { Category, Product } from "@/lib/types";
+
+/** Campo de imagen: sube al Storage y devuelve la URL pública vía onChange. */
+function ImageField({
+  value,
+  onChange,
+  disabled,
+}: {
+  value: string | null;
+  onChange: (url: string | null) => void;
+  disabled?: boolean;
+}) {
+  const [uploading, setUploading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  async function handleFile(file: File | undefined) {
+    if (!file) return;
+    setError(null);
+    setUploading(true);
+    try {
+      const url = await uploadProductImage(file);
+      onChange(url);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "No se pudo subir la imagen.");
+    } finally {
+      setUploading(false);
+    }
+  }
+
+  return (
+    <div className="flex items-center gap-3">
+      {value ? (
+        <Image
+          src={value}
+          alt="Imagen del producto"
+          width={56}
+          height={56}
+          className="h-14 w-14 rounded-md object-cover"
+        />
+      ) : (
+        <div className="flex h-14 w-14 items-center justify-center rounded-md border border-dashed border-black/20 text-xl text-black/30 dark:border-white/20 dark:text-white/30">
+          🍔
+        </div>
+      )}
+      <div className="space-y-1">
+        <label className="inline-block cursor-pointer rounded-md border border-black/15 px-3 py-1.5 text-sm dark:border-white/15">
+          {uploading ? "Subiendo…" : value ? "Cambiar foto" : "Subir foto"}
+          <input
+            type="file"
+            accept="image/*"
+            disabled={disabled || uploading}
+            onChange={(e) => handleFile(e.target.files?.[0])}
+            className="hidden"
+          />
+        </label>
+        {value && !uploading && (
+          <button
+            type="button"
+            onClick={() => onChange(null)}
+            className="ml-2 text-xs text-red-600"
+          >
+            Quitar
+          </button>
+        )}
+        {error && <p className="text-xs text-red-600">{error}</p>}
+      </div>
+    </div>
+  );
+}
 
 export default function ProductManager({
   products,
@@ -27,6 +98,7 @@ export default function ProductManager({
   const [price, setPrice] = useState("");
   const [categoryId, setCategoryId] = useState(categories[0]?.id ?? "");
   const [description, setDescription] = useState("");
+  const [imageUrl, setImageUrl] = useState<string | null>(null);
 
   function run(fn: () => Promise<ActionResult>) {
     setError(null);
@@ -66,6 +138,7 @@ export default function ProductManager({
           onChange={(e) => setDescription(e.target.value)}
           className="w-full rounded-md border border-black/15 px-3 py-2 text-sm dark:border-white/15 dark:bg-transparent"
         />
+        <ImageField value={imageUrl} onChange={setImageUrl} disabled={isPending} />
         <div className="flex gap-2">
           <select
             value={categoryId}
@@ -88,11 +161,13 @@ export default function ProductManager({
                   description,
                   price: Number(price),
                   category_id: categoryId || null,
+                  image_url: imageUrl,
                 });
                 if (res.ok) {
                   setName("");
                   setPrice("");
                   setDescription("");
+                  setImageUrl(null);
                 }
                 return res;
               })
@@ -150,6 +225,7 @@ function ProductRow({
     price: number;
     description: string | null;
     category_id: string | null;
+    image_url: string | null;
   }) => void;
   onToggle: () => void;
   onDelete: () => void;
@@ -159,6 +235,7 @@ function ProductRow({
   const [price, setPrice] = useState(String(product.price));
   const [description, setDescription] = useState(product.description ?? "");
   const [categoryId, setCategoryId] = useState(product.category_id ?? "");
+  const [imageUrl, setImageUrl] = useState<string | null>(product.image_url);
 
   const categoryName =
     categories.find((c) => c.id === product.category_id)?.name ?? "Sin categoría";
@@ -187,6 +264,7 @@ function ProductRow({
           placeholder="Descripción"
           className="w-full rounded-md border border-black/15 px-3 py-2 text-sm dark:border-white/15 dark:bg-transparent"
         />
+        <ImageField value={imageUrl} onChange={setImageUrl} disabled={disabled} />
         <div className="flex gap-2">
           <select
             value={categoryId}
@@ -208,6 +286,7 @@ function ProductRow({
                 price: Number(price),
                 description: description || null,
                 category_id: categoryId || null,
+                image_url: imageUrl,
               });
               setEditing(false);
             }}
@@ -229,6 +308,19 @@ function ProductRow({
 
   return (
     <div className="flex items-center gap-3 rounded-lg border border-black/10 p-3 dark:border-white/10">
+      {product.image_url ? (
+        <Image
+          src={product.image_url}
+          alt={product.name}
+          width={48}
+          height={48}
+          className="h-12 w-12 shrink-0 rounded-md object-cover"
+        />
+      ) : (
+        <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-md bg-black/5 text-lg dark:bg-white/10">
+          🍔
+        </div>
+      )}
       <div className="flex-1">
         <p className="text-sm font-medium">
           {product.name}{" "}
@@ -254,6 +346,12 @@ function ProductRow({
       >
         {product.available ? "Disponible" : "Agotado"}
       </button>
+      <Link
+        href={`/admin/menu/${product.id}`}
+        className="text-sm text-black/60 hover:underline dark:text-white/60"
+      >
+        Opciones
+      </Link>
       <button
         type="button"
         onClick={() => setEditing(true)}

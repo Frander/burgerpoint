@@ -30,8 +30,15 @@ export function buildOrderMessage(order: OrderSummary): string {
   lines.push("*Pedido:*");
   for (const item of order.items) {
     lines.push(
-      `• ${item.quantity}x ${item.name} — ${formatMoney(item.price * item.quantity)}`,
+      `• ${item.quantity}x ${item.name} — ${formatMoney(item.unitPrice * item.quantity)}`,
     );
+    for (const mod of item.modifiers) {
+      const extra = mod.extra_price > 0 ? ` (+${formatMoney(mod.extra_price)})` : "";
+      lines.push(`   – ${mod.name}${extra}`);
+    }
+    if (item.notes) {
+      lines.push(`   _${item.notes}_`);
+    }
   }
   lines.push("");
   lines.push(`*Total: ${formatMoney(order.total)}*`);

@@ -56,6 +56,7 @@ export interface ProductInput {
   price: number;
   category_id: string | null;
   available?: boolean;
+  image_url?: string | null;
 }
 
 export async function createProduct(
@@ -70,6 +71,7 @@ export async function createProduct(
     price: input.price,
     category_id: input.category_id,
     available: input.available ?? true,
+    image_url: input.image_url ?? null,
   });
   if (error) return { ok: false, error: error.message };
   revalidateMenu();
@@ -94,5 +96,107 @@ export async function deleteProduct(id: string): Promise<ActionResult> {
   const { error } = await supabase.from("products").delete().eq("id", id);
   if (error) return { ok: false, error: error.message };
   revalidateMenu();
+  return { ok: true };
+}
+
+// ---------- Grupos de opciones / modificadores ----------
+
+function revalidateProduct(productId: string) {
+  revalidatePath(`/admin/menu/${productId}`);
+  revalidatePath(`/menu/${productId}`);
+  revalidateMenu(); // afecta el flag has_modifiers en el listado
+}
+
+export interface GroupInput {
+  name: string;
+  min_select: number;
+  max_select: number;
+  sort_order?: number;
+}
+
+export async function createGroup(
+  productId: string,
+  input: GroupInput,
+): Promise<ActionResult> {
+  if (!input.name.trim()) return { ok: false, error: "Falta el nombre del grupo." };
+  if (input.max_select < 1) return { ok: false, error: "El máximo debe ser ≥ 1." };
+  if (input.min_select < 0 || input.min_select > input.max_select) {
+    return { ok: false, error: "El mínimo no puede superar al máximo." };
+  }
+  const supabase = await createClient();
+  const { error } = await supabase.from("modifier_groups").insert({
+    product_id: productId,
+    name: input.name.trim(),
+    min_select: input.min_select,
+    max_select: input.max_select,
+    sort_order: input.sort_order ?? 0,
+  });
+  if (error) return { ok: false, error: error.message };
+  revalidateProduct(productId);
+  return { ok: true };
+}
+
+export async function updateGroup(
+  id: string,
+  productId: string,
+  fields: Partial<GroupInput>,
+): Promise<ActionResult> {
+  const supabase = await createClient();
+  const patch: Record<string, unknown> = { ...fields };
+  if (typeof patch.name === "string") patch.name = patch.name.trim();
+  const { error } = await supabase
+    .from("modifier_groups")
+    .update(patch)
+    .eq("id", id);
+  if (error) return { ok: false, error: error.message };
+  revalidateProduct(productId);
+  return { ok: true };
+}
+
+export async function deleteGroup(
+  id: string,
+  productId: string,
+): Promise<ActionResult> {
+  const supabase = await createClient();
+  const { error } = await supabase.from("modifier_groups").delete().eq("id", id);
+  if (error) return { ok: false, error: error.message };
+  revalidateProduct(productId);
+  return { ok: true };
+}
+
+export interface ModifierInput {
+  name: string;
+  extra_price: number;
+  sort_order?: number;
+}
+
+export async function createModifier(
+  groupId: string,
+  productId: string,
+  input: ModifierInput,
+): Promise<ActionResult> {
+  if (!input.name.trim()) return { ok: false, error: "Falta el nombre de la opción." };
+  if (!(input.extra_price >= 0)) return { ok: false, error: "Precio inválido." };
+  const supabase = await createClient();
+  const { error } = await supabase.from("modifiers").insert({
+    group_id: groupId,
+    product_id: productId,
+    name: input.name.trim(),
+    extra_price: input.extra_price,
+    sort_order: input.sort_order ?? 0,
+  });
+  if (error) return { ok: false, error: error.message };
+  revalidateProduct(productId);
+  return { ok: true };
+}
+
+export async function deleteModifier(
+  id: string,
+  productId: string,
+): Promise<ActionResult> {
+  const supabase = await createClient();
+  const { error } = await supabase.from("modifiers").delete().eq("id", id);
+  if (error) return { ok: false, error: error.message };
+  revalidateProduct(productId);
   return { ok: true };
 }
