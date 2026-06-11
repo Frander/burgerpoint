@@ -23,7 +23,7 @@ export default async function AdminLayout({
     <div className="flex min-h-full">
       <aside className="flex w-56 shrink-0 flex-col border-r border-black/10 bg-black/[.02] p-4 dark:border-white/10 dark:bg-white/[.02]">
         <Link href="/admin" className="block text-lg font-bold">
-          🍔 Burger Point
+          🍔 Burguer Point
         </Link>
         <p className="mb-6 text-xs text-black/50 dark:text-white/50">Panel</p>
         <nav className="flex flex-1 flex-col gap-1">

@@ -103,14 +103,14 @@ export default function CartDrawer({
       />
 
       {/* Panel */}
-      <div className="relative flex h-full w-full max-w-md flex-col overflow-y-auto bg-[var(--background)] shadow-xl">
-        <div className="flex items-center justify-between border-b border-black/10 p-4 dark:border-white/10">
+      <div className="relative flex h-full w-full max-w-md flex-col overflow-y-auto bg-white text-gray-900 shadow-xl">
+        <div className="flex items-center justify-between border-b border-gray-100 p-4">
           <h2 className="text-lg font-semibold">Tu pedido</h2>
           <button
             type="button"
             onClick={onClose}
             aria-label="Cerrar"
-            className="text-2xl leading-none text-black/50 dark:text-white/50"
+            className="text-2xl leading-none text-gray-400 transition-colors hover:text-gray-600"
           >
             ×
           </button>
@@ -120,7 +120,7 @@ export default function CartDrawer({
           <div className="flex flex-1 flex-col items-center justify-center gap-4 p-8 text-center">
             <div className="text-4xl">✅</div>
             <h3 className="text-lg font-semibold">¡Pedido listo!</h3>
-            <p className="text-sm text-black/60 dark:text-white/60">
+            <p className="text-sm text-gray-500">
               Folio <span className="font-mono font-medium">{confirmation.code}</span>.
               {confirmation.preview
                 ? " (Modo vista previa: no se guardó en la base.)"
@@ -131,14 +131,14 @@ export default function CartDrawer({
               target="_blank"
               rel="noopener noreferrer"
               onClick={handleFinish}
-              className="w-full rounded-full bg-[#25D366] px-5 py-3 font-medium text-white"
+              className="w-full rounded-full bg-[#25D366] px-5 py-3 font-medium text-white transition-opacity hover:opacity-90"
             >
               Enviar por WhatsApp
             </a>
             <button
               type="button"
               onClick={handleFinish}
-              className="text-sm text-black/50 underline dark:text-white/50"
+              className="text-sm text-gray-400 underline hover:text-gray-600"
             >
               Cerrar
             </button>
@@ -147,28 +147,28 @@ export default function CartDrawer({
           <form onSubmit={handleSubmit} className="flex flex-1 flex-col">
             <div className="flex-1 space-y-3 p-4">
               {items.length === 0 ? (
-                <p className="py-8 text-center text-sm text-black/60 dark:text-white/60">
+                <p className="py-8 text-center text-sm text-gray-500">
                   Tu carrito está vacío.
                 </p>
               ) : (
                 items.map((item) => (
                   <div
                     key={item.lineId}
-                    className="flex items-start gap-3 rounded-lg border border-black/10 p-3 dark:border-white/10"
+                    className="flex items-start gap-3 rounded-lg border border-gray-100 p-3"
                   >
                     <div className="flex-1">
                       <p className="text-sm font-medium">{item.name}</p>
                       {item.modifiers.length > 0 && (
-                        <p className="text-xs text-black/60 dark:text-white/60">
+                        <p className="text-xs text-gray-500">
                           {item.modifiers.map((m) => m.name).join(", ")}
                         </p>
                       )}
                       {item.notes && (
-                        <p className="text-xs italic text-black/50 dark:text-white/50">
+                        <p className="text-xs italic text-gray-400">
                           “{item.notes}”
                         </p>
                       )}
-                      <p className="mt-0.5 text-xs text-black/60 dark:text-white/60">
+                      <p className="mt-0.5 text-xs text-gray-500">
                         {formatMoney(item.unitPrice)} c/u
                       </p>
                     </div>
@@ -177,7 +177,7 @@ export default function CartDrawer({
                         type="button"
                         aria-label="Quitar uno"
                         onClick={() => decrement(item.lineId)}
-                        className="h-7 w-7 rounded-full border border-black/15 leading-none dark:border-white/15"
+                        className="h-7 w-7 rounded-full border border-gray-200 leading-none transition-colors hover:border-gray-900"
                       >
                         −
                       </button>
@@ -188,7 +188,7 @@ export default function CartDrawer({
                         type="button"
                         aria-label="Agregar uno"
                         onClick={() => increment(item.lineId)}
-                        className="h-7 w-7 rounded-full border border-black/15 leading-none dark:border-white/15"
+                        className="h-7 w-7 rounded-full border border-gray-200 leading-none transition-colors hover:border-gray-900"
                       >
                         +
                       </button>
@@ -207,7 +207,7 @@ export default function CartDrawer({
 
               {items.length > 0 && (
                 <div className="space-y-3 pt-2">
-                  <div className="flex justify-between border-t border-black/10 pt-3 font-semibold dark:border-white/10">
+                  <div className="flex justify-between border-t border-gray-100 pt-3 font-semibold">
                     <span>Total</span>
                     <span>{formatMoney(total)}</span>
                   </div>
@@ -217,13 +217,13 @@ export default function CartDrawer({
                     placeholder="Tu nombre"
                     value={name}
                     onChange={(e) => setName(e.target.value)}
-                    className="w-full rounded-md border border-black/15 px-3 py-2 text-sm dark:border-white/15 dark:bg-transparent"
+                    className="w-full rounded-md border border-gray-200 px-3 py-2 text-sm placeholder:text-gray-400 focus:border-gray-900 focus:outline-none focus:ring-1 focus:ring-gray-900"
                   />
                   <input
                     placeholder="Teléfono (opcional)"
                     value={phone}
                     onChange={(e) => setPhone(e.target.value)}
-                    className="w-full rounded-md border border-black/15 px-3 py-2 text-sm dark:border-white/15 dark:bg-transparent"
+                    className="w-full rounded-md border border-gray-200 px-3 py-2 text-sm placeholder:text-gray-400 focus:border-gray-900 focus:outline-none focus:ring-1 focus:ring-gray-900"
                   />
 
                   <div className="flex gap-2">
@@ -232,13 +232,13 @@ export default function CartDrawer({
                         type="button"
                         key={t}
                         onClick={() => setType(t)}
-                        className={`flex-1 rounded-md border px-3 py-2 text-sm ${
+                        className={`flex-1 rounded-md border px-3 py-2 text-sm font-medium transition-colors ${
                           type === t
-                            ? "border-black bg-black text-white dark:border-white dark:bg-white dark:text-black"
-                            : "border-black/15 dark:border-white/15"
+                            ? "border-gray-900 bg-gray-900 text-white"
+                            : "border-gray-200 text-gray-700 hover:border-gray-400"
                         }`}
                       >
-                        {t === "delivery" ? "Entrega" : "Recoger"}
+                        {t === "delivery" ? "A domicilio" : "Para llevar"}
                       </button>
                     ))}
                   </div>
@@ -249,7 +249,7 @@ export default function CartDrawer({
                       placeholder="Dirección de entrega"
                       value={address}
                       onChange={(e) => setAddress(e.target.value)}
-                      className="w-full rounded-md border border-black/15 px-3 py-2 text-sm dark:border-white/15 dark:bg-transparent"
+                      className="w-full rounded-md border border-gray-200 px-3 py-2 text-sm placeholder:text-gray-400 focus:border-gray-900 focus:outline-none focus:ring-1 focus:ring-gray-900"
                     />
                   )}
 
@@ -258,7 +258,7 @@ export default function CartDrawer({
                     value={notes}
                     onChange={(e) => setNotes(e.target.value)}
                     rows={2}
-                    className="w-full rounded-md border border-black/15 px-3 py-2 text-sm dark:border-white/15 dark:bg-transparent"
+                    className="w-full rounded-md border border-gray-200 px-3 py-2 text-sm placeholder:text-gray-400 focus:border-gray-900 focus:outline-none focus:ring-1 focus:ring-gray-900"
                   />
 
                   {error && <p className="text-sm text-red-600">{error}</p>}
@@ -267,11 +267,11 @@ export default function CartDrawer({
             </div>
 
             {items.length > 0 && (
-              <div className="border-t border-black/10 p-4 dark:border-white/10">
+              <div className="border-t border-gray-100 p-4">
                 <button
                   type="submit"
                   disabled={submitting}
-                  className="w-full rounded-full bg-black px-5 py-3 font-medium text-white disabled:opacity-50 dark:bg-white dark:text-black"
+                  className="w-full rounded-full bg-gray-900 px-5 py-3 font-semibold text-white transition-colors hover:bg-gray-700 disabled:opacity-50"
                 >
                   {submitting ? "Enviando…" : `Confirmar pedido · ${formatMoney(total)}`}
                 </button>

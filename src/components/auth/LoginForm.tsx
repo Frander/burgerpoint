@@ -38,7 +38,7 @@ export default function LoginForm() {
         onSubmit={handleSubmit}
         className="w-full max-w-sm rounded-xl border border-black/10 p-6 dark:border-white/10"
       >
-        <h1 className="text-xl font-bold">🍔 Burger Point</h1>
+        <h1 className="text-xl font-bold">🍔 Burguer Point</h1>
         <p className="mb-6 text-sm text-black/60 dark:text-white/60">
           Acceso al panel
         </p>

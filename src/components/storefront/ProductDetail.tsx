@@ -9,12 +9,13 @@ import { formatMoney } from "@/lib/format";
 import type { ModifierGroupWithOptions, ProductWithModifiers } from "@/lib/types";
 
 function groupHint(g: ModifierGroupWithOptions): string {
-  const required = g.min_select >= 1;
   if (g.max_select === 1) {
-    return required ? "Obligatorio · elige 1" : "Opcional · elige 1";
+    return g.min_select >= 1 ? "Seleccione 1 opción" : "Seleccione hasta 1 opción";
   }
-  if (required) return `Obligatorio · elige ${g.min_select} a ${g.max_select}`;
-  return `Opcional · hasta ${g.max_select}`;
+  if (g.min_select >= 1) {
+    return `Seleccione de ${g.min_select} a ${g.max_select} opciones`;
+  }
+  return `Seleccione hasta ${g.max_select} opciones`;
 }
 
 export default function ProductDetail({
@@ -89,130 +90,141 @@ export default function ProductDetail({
   }
 
   return (
-    <div className="mx-auto w-full max-w-2xl px-4 pb-40">
-      <header className="py-6">
-        <Link
-          href="/menu"
-          className="text-sm text-black/50 hover:underline dark:text-white/50"
-        >
-          ← Menú
-        </Link>
-      </header>
+    <div className="min-h-full bg-white text-gray-900">
+      <div className="mx-auto w-full max-w-4xl px-4 pb-32">
+        {/* Encabezado: volver + título centrado, como el modal de OlaClick */}
+        <header className="relative flex items-center justify-center py-5">
+          <Link
+            href="/menu"
+            aria-label="Volver al menú"
+            className="absolute left-0 flex h-9 w-9 items-center justify-center rounded-full border border-gray-200 text-lg transition-colors hover:bg-gray-50"
+          >
+            ←
+          </Link>
+          <h1 className="max-w-[70%] truncate text-xl font-bold tracking-tight">
+            {product.name}
+          </h1>
+        </header>
 
-      {product.image_url && (
-        <Image
-          src={product.image_url}
-          alt={product.name}
-          width={672}
-          height={320}
-          className="mb-4 h-56 w-full rounded-xl object-cover"
-        />
-      )}
+        <div className="grid grid-cols-1 gap-8 md:grid-cols-2">
+          {/* Imagen */}
+          {product.image_url && (
+            <Image
+              src={product.image_url}
+              alt={product.name}
+              width={672}
+              height={672}
+              className="w-full rounded-xl object-cover"
+            />
+          )}
 
-      <h1 className="text-2xl font-bold tracking-tight">{product.name}</h1>
-      {product.description && (
-        <p className="mt-1 text-black/60 dark:text-white/60">
-          {product.description}
-        </p>
-      )}
-      <p className="mt-2 text-lg font-semibold">{formatMoney(product.price)}</p>
+          {/* Información + opciones */}
+          <div className={product.image_url ? "" : "md:col-span-2"}>
+            {product.description && (
+              <p className="whitespace-pre-line text-sm leading-relaxed text-gray-600">
+                {product.description}
+              </p>
+            )}
+            <p className="mt-3 text-lg font-bold">{formatMoney(product.price)}</p>
 
-      {/* Grupos de opciones */}
-      <div className="mt-6 space-y-6">
-        {groups.map((group) => {
-          const ids = selected[group.id] ?? [];
-          const single = group.max_select === 1;
-          const atMax = !single && ids.length >= group.max_select;
-          return (
-            <section key={group.id}>
-              <div className="mb-2 flex items-baseline justify-between gap-2">
-                <h2 className="font-semibold">{group.name}</h2>
-                <span className="text-xs text-black/50 dark:text-white/50">
-                  {groupHint(group)}
-                </span>
-              </div>
-              <div className="space-y-2">
-                {group.modifiers.map((opt) => {
-                  const checked = ids.includes(opt.id);
-                  const disabled = !checked && atMax;
-                  return (
-                    <label
-                      key={opt.id}
-                      className={`flex cursor-pointer items-center gap-3 rounded-lg border px-3 py-2.5 text-sm ${
-                        checked
-                          ? "border-black bg-black/[0.03] dark:border-white dark:bg-white/[0.06]"
-                          : "border-black/15 dark:border-white/15"
-                      } ${disabled ? "opacity-40" : ""}`}
-                    >
-                      <input
-                        type={single ? "radio" : "checkbox"}
-                        name={group.id}
-                        checked={checked}
-                        disabled={disabled}
-                        onChange={() => toggle(group, opt.id)}
-                        className="h-4 w-4 accent-black dark:accent-white"
-                      />
-                      <span className="flex-1">{opt.name}</span>
-                      {opt.extra_price > 0 && (
-                        <span className="text-black/60 dark:text-white/60">
-                          +{formatMoney(opt.extra_price)}
-                        </span>
-                      )}
-                    </label>
-                  );
-                })}
-              </div>
-            </section>
-          );
-        })}
-      </div>
+            {/* Grupos de opciones */}
+            <div className="mt-6 space-y-6">
+              {groups.map((group) => {
+                const ids = selected[group.id] ?? [];
+                const single = group.max_select === 1;
+                const atMax = !single && ids.length >= group.max_select;
+                return (
+                  <section
+                    key={group.id}
+                    className="border-t border-gray-100 pt-4"
+                  >
+                    <h2 className="font-semibold">{group.name}</h2>
+                    <p className="text-xs text-gray-400">{groupHint(group)}</p>
+                    <div className="mt-3 flex flex-wrap gap-2">
+                      {group.modifiers.map((opt) => {
+                        const checked = ids.includes(opt.id);
+                        const disabled = !checked && atMax;
+                        return (
+                          <label
+                            key={opt.id}
+                            className={`inline-flex cursor-pointer items-center gap-2 rounded-lg border px-3 py-2 text-sm transition-colors ${
+                              checked
+                                ? "border-gray-900 bg-gray-50 font-medium"
+                                : "border-gray-200 hover:border-gray-400"
+                            } ${disabled ? "cursor-not-allowed opacity-40" : ""}`}
+                          >
+                            <input
+                              type={single ? "radio" : "checkbox"}
+                              name={group.id}
+                              checked={checked}
+                              disabled={disabled}
+                              onChange={() => toggle(group, opt.id)}
+                              className="h-4 w-4 accent-gray-900"
+                            />
+                            <span>{opt.name}</span>
+                            {opt.extra_price > 0 && (
+                              <span className="text-gray-500">
+                                +{formatMoney(opt.extra_price)}
+                              </span>
+                            )}
+                          </label>
+                        );
+                      })}
+                    </div>
+                  </section>
+                );
+              })}
+            </div>
 
-      {/* Comentarios */}
-      <div className="mt-6">
-        <label className="mb-1 block text-sm font-medium">Comentarios</label>
-        <textarea
-          value={notes}
-          onChange={(e) => setNotes(e.target.value)}
-          rows={2}
-          placeholder="Ej. sin sal, término medio…"
-          className="w-full rounded-md border border-black/15 px-3 py-2 text-sm dark:border-white/15 dark:bg-transparent"
-        />
-      </div>
+            {/* Comentarios */}
+            <div className="mt-6 border-t border-gray-100 pt-4">
+              <label className="mb-2 block font-semibold">Comentarios</label>
+              <textarea
+                value={notes}
+                onChange={(e) => setNotes(e.target.value)}
+                rows={3}
+                placeholder="(Opcional)"
+                className="w-full rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-sm placeholder:text-gray-400 focus:border-gray-900 focus:bg-white focus:outline-none"
+              />
+            </div>
+          </div>
+        </div>
 
-      {/* Barra fija: cantidad + agregar */}
-      <div className="fixed inset-x-0 bottom-0 z-20 border-t border-black/10 bg-[var(--background)] p-4 dark:border-white/10">
-        <div className="mx-auto flex max-w-2xl items-center gap-3">
-          <div className="flex items-center gap-2">
+        {/* Barra fija: cantidad + agregar */}
+        <div className="fixed inset-x-0 bottom-0 z-20 border-t border-gray-100 bg-white p-4">
+          <div className="mx-auto flex w-full max-w-md items-center justify-center gap-3">
+            <div className="flex items-center rounded-lg border border-gray-200">
+              <button
+                type="button"
+                aria-label="Menos"
+                onClick={() => setQuantity((q) => Math.max(1, q - 1))}
+                className="flex h-11 w-11 items-center justify-center text-lg transition-colors hover:bg-gray-50"
+              >
+                −
+              </button>
+              <span className="w-8 text-center text-sm font-semibold">
+                {quantity}
+              </span>
+              <button
+                type="button"
+                aria-label="Más"
+                onClick={() => setQuantity((q) => q + 1)}
+                className="flex h-11 w-11 items-center justify-center text-lg transition-colors hover:bg-gray-50"
+              >
+                +
+              </button>
+            </div>
             <button
               type="button"
-              aria-label="Menos"
-              onClick={() => setQuantity((q) => Math.max(1, q - 1))}
-              className="h-9 w-9 rounded-full border border-black/15 text-lg leading-none dark:border-white/15"
+              onClick={handleAdd}
+              disabled={!canAdd}
+              className="h-11 flex-1 rounded-lg bg-gray-900 px-6 text-sm font-semibold text-white transition-colors hover:bg-gray-700 disabled:opacity-50"
             >
-              −
-            </button>
-            <span className="w-5 text-center text-sm font-medium">
-              {quantity}
-            </span>
-            <button
-              type="button"
-              aria-label="Más"
-              onClick={() => setQuantity((q) => q + 1)}
-              className="h-9 w-9 rounded-full border border-black/15 text-lg leading-none dark:border-white/15"
-            >
-              +
+              {canAdd
+                ? `Agregar ${formatMoney(lineTotal)}`
+                : `Falta elegir: ${missing.join(", ")}`}
             </button>
           </div>
-          <button
-            type="button"
-            onClick={handleAdd}
-            disabled={!canAdd}
-            className="flex-1 rounded-full bg-black px-5 py-3 text-sm font-medium text-white disabled:opacity-50 dark:bg-white dark:text-black"
-          >
-            {canAdd
-              ? `Agregar · ${formatMoney(lineTotal)}`
-              : `Falta elegir: ${missing.join(", ")}`}
-          </button>
         </div>
       </div>
     </div>

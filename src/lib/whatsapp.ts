@@ -16,7 +16,7 @@ interface OrderSummary {
 export function buildOrderMessage(order: OrderSummary): string {
   const lines: string[] = [];
   const restaurant =
-    process.env.NEXT_PUBLIC_RESTAURANT_NAME || "Burger Point";
+    process.env.NEXT_PUBLIC_RESTAURANT_NAME || "Burguer Point";
 
   lines.push(`*Nuevo pedido — ${restaurant}*`);
   lines.push(`Folio: ${order.code}`);

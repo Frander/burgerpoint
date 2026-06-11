@@ -16,20 +16,18 @@ export default function CartBar() {
   return (
     <>
       {itemCount > 0 && (
-        <div className="fixed inset-x-0 bottom-0 z-20 border-t border-black/10 bg-[var(--background)] p-4 dark:border-white/10">
-          <div className="mx-auto flex max-w-2xl items-center justify-between gap-4">
-            <span className="text-sm">
-              {itemCount} {itemCount === 1 ? "producto" : "productos"} ·{" "}
-              <span className="font-semibold">{formatMoney(total)}</span>
+        <div className="fixed inset-x-0 bottom-0 z-20 p-4">
+          <button
+            type="button"
+            onClick={() => setOpen(true)}
+            className="mx-auto flex w-full max-w-2xl items-center justify-between gap-4 rounded-full bg-gray-900 px-5 py-3.5 text-white shadow-lg shadow-gray-900/30 transition-colors hover:bg-gray-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gray-900 focus-visible:ring-offset-2"
+          >
+            <span className="flex h-7 w-7 items-center justify-center rounded-full bg-white/20 text-sm font-semibold">
+              {itemCount}
             </span>
-            <button
-              type="button"
-              onClick={() => setOpen(true)}
-              className="rounded-full bg-black px-5 py-2.5 text-sm font-medium text-white dark:bg-white dark:text-black"
-            >
-              Ver pedido
-            </button>
-          </div>
+            <span className="font-semibold">Ver mi pedido</span>
+            <span className="font-semibold">{formatMoney(total)}</span>
+          </button>
         </div>
       )}
 
