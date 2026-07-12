@@ -3,7 +3,8 @@
 Documento para retomar el trabajo en otra sesión. Resume qué está hecho, qué
 falta de tu lado, y los próximos pasos sugeridos.
 
-_Última actualización: 29 may 2026 (opciones/modificadores de producto)_
+_Última actualización: 12 jul 2026 (back-office estilo OlaClick: PDV, mesas,
+impresión térmica y cajas)_
 
 ---
 
@@ -27,6 +28,10 @@ Supabase (Postgres + Auth + Realtime + Storage) · Vercel (hosting).
 | 2 | Backoffice: login, CRUD de menú, gestión de pedidos | ✅ |
 | 3 | Cocina (KDS) en tiempo real (Supabase Realtime) | ✅ |
 | 4 | Inventario (con triggers de stock) + reportes de ventas | ✅ |
+| 5 | **PDV** (punto de venta): pedidos En el local / Para llevar / A domicilio / Mesa, pagos, finalizar | ✅ |
+| 6 | **Salas y mesas** (CRUD + mapa de mesas en el PDV) | ✅ |
+| 7 | **Impresión térmica 80mm**: ticket cliente + comanda (navegador y agente Windows) | ✅ |
+| 8 | **Cajas** (apertura/cierre/arqueo), registros financieros, historial con filtros + CSV | ✅ |
 
 Cada fase tiene su commit en git (`git log --oneline`).
 
@@ -35,13 +40,56 @@ Cada fase tiene su commit en git (`git log --oneline`).
 - `/menu` — menú público / pedido del cliente
 - `/menu/[id]` — detalle de producto con sus opciones (modificadores)
 - `/login` — acceso del staff
-- `/admin` — panel (pedidos, cocina, menú, inventario, reportes)
+- `/admin` — panel: **PDV**, pedidos (historial), cocina, menú, **mesas**,
+  inventario, **caja**, reportes
+- `/print/ticket/[id]?tipo=cliente|cocina` — ticket imprimible 80mm (staff)
+
+### Réplica del panel OlaClick (12 jul 2026)
+Se revisó el panel real (panel.olaclick.app, cuenta burguer-point) y se
+replicó lo esencial del back:
+- **PDV** (`/admin/pdv`): pestañas Mostrador / A domicilio / Mesas (como
+  OlaClick), "Nuevo pedido" con atajos Alt+N (local), Alt+R (llevar),
+  Alt+Y (domicilio); editor con grid de productos, opciones/modificadores,
+  cliente, envío; acciones por pedido: 🖨 ticket, 🖨 comanda, avanzar estado,
+  registrar pago (efectivo/tarjeta/transferencia con cambio), finalizar,
+  cancelar, + productos. En vivo vía Realtime.
+- **Mesas**: salas y mesas (`/admin/mesas`), mapa de mesas libre/ocupada en el
+  PDV; agregar productos a una mesa abierta.
+- **Pagos**: tabla `order_payments`; el trigger marca el pedido "pagado" al
+  cubrir el total. Estado de pago visible en PDV e impreso en el ticket.
+- **Caja** (`/admin/caja`): abrir con efectivo inicial, ventas por método del
+  turno, ingresos/gastos manuales, cierre con arqueo (esperado vs contado) e
+  historial de cajas.
+- **Historial de pedidos** (`/admin/pedidos`): filtros por fecha/estado/origen
+  (PDV/WEB), total del rango y exportación CSV.
+- **Reportes**: además de lo de fase 4, análisis por tipo de servicio
+  (en mesa / en local / para llevar / a domicilio) y por origen.
+- **Impresión térmica 80mm** (formato de docs/mesa.jpeg y docs/domicilio.jpeg):
+  - Manual: botón 🖨 abre `/print/ticket/[id]` y usa el diálogo del navegador
+    (funciona con el driver de la impresora).
+  - Automática: **agente local** en `print-agent/` (Node, para la PC Windows
+    de la caja con la impresora USB compartida). Escucha Realtime e imprime
+    comanda + ticket (ESC/POS con QR y corte) cuando el pedido entra a cocina.
+    Ver `print-agent/README.md`.
 
 ---
 
 ## ⚠️ PENDIENTE DE TU LADO (importante)
 
 Para que el sistema funcione 100% con tu Supabase, faltan estos pasos manuales:
+
+0. **⚠️ OBLIGATORIO con el código nuevo: correr `0006_pdv.sql` y
+   `0007_caja.sql`** en Supabase → SQL Editor (en ese orden, después de la
+   0005). La 0006 agrega los tipos de pedido del PDV, pagos, salas/mesas y
+   columnas nuevas de `orders` — **sin ella hasta el pedido web falla**, porque
+   `createOrder` ya escribe esas columnas. La 0007 crea cajas y registros
+   financieros (sin ella, la página Caja te lo indica y el resto funciona).
+
+0b. **Configurar el agente de impresión** (PC Windows de la caja):
+   instalar Node 18+, compartir la impresora térmica 80mm como `POS80`,
+   y seguir `print-agent/README.md` (`npm install`, copiar
+   `config.example.json` → `config.json` con tus datos, `node index.js`).
+   Prueba con `node index.js --test`.
 
 1. **Correr la migración de inventario.** En Supabase → SQL Editor, ejecuta el
    contenido de `supabase/migrations/0003_inventory.sql`.
@@ -145,24 +193,35 @@ src/
     admin/
       layout.tsx             # shell del panel (nav + usuario + logout)
       page.tsx               # dashboard
-      pedidos/               # lista + cambio de estado (actions.ts)
+      pdv/                   # PDV: crear pedidos, pagos, finalizar (actions.ts)
+      pedidos/               # historial con filtros + export/route.ts (CSV)
       cocina/                # KDS realtime
       menu/                  # CRUD categorías/productos (actions.ts)
+      mesas/                 # CRUD salas y mesas (actions.ts)
       inventario/            # stock + movimientos (actions.ts)
-      reportes/              # ventas y top productos
+      caja/                  # apertura/cierre, ingresos/gastos (actions.ts)
+      reportes/              # ventas, top productos, por tipo de servicio
+    print/ticket/[id]/       # ticket 80mm imprimible (cliente/comanda)
   components/
     cart/                    # CartProvider, CartDrawer
     storefront/              # Storefront, ProductCard
     admin/                   # CategoryManager, ProductManager, OrderList,
-                             # KitchenBoard, InventoryManager
+                             # KitchenBoard, InventoryManager, MesaManager,
+                             # CashManager
+    admin/pdv/               # PdvBoard, PdvOrderEditor, PdvProductOptions,
+                             # PdvPaymentModal
     auth/LoginForm.tsx
   lib/
     supabase/                # client, server, session, auth, config
-    types.ts  menu.ts  orders.ts  format.ts  whatsapp.ts  sample-menu.ts
+    types.ts  menu.ts  orders.ts  order-insert.ts  business.ts
+    format.ts  whatsapp.ts  sample-menu.ts  upload.ts
   proxy.ts                   # protege /admin + refresca sesión (ex middleware)
 supabase/
   migrations/0001_init.sql  0002_grants.sql  0003_inventory.sql
+             0004_storage.sql  0005_modifiers.sql  0006_pdv.sql  0007_caja.sql
   seed.sql
+print-agent/                 # agente local de impresión (Windows + térmica USB)
+  index.js  ticket.js  escpos.js  config.example.json  README.md
 ```
 
 ### Notas técnicas clave
