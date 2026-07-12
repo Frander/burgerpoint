@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useState, useTransition } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { updateOrderStatus } from "@/app/admin/pedidos/actions";
-import { ORDER_STATUS_META, nextStatus } from "@/lib/orders";
+import { ORDER_STATUS_META, ORDER_TYPE_META, nextStatus } from "@/lib/orders";
 import type { OrderStatus, OrderWithItems } from "@/lib/types";
 
 const COLUMNS: { status: OrderStatus; title: string }[] = [
@@ -139,7 +139,7 @@ export default function KitchenBoard({
                       </div>
                       <p className="text-xs text-black/50 dark:text-white/50">
                         {order.customer_name} ·{" "}
-                        {order.type === "delivery" ? "Entrega" : "Recoger"}
+                        {ORDER_TYPE_META[order.type].label}
                       </p>
                       <ul className="mt-2 space-y-0.5 text-sm">
                         {order.order_items.map((item) => (

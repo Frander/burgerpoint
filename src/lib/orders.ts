@@ -1,4 +1,4 @@
-import type { OrderStatus } from "@/lib/types";
+import type { OrderStatus, OrderType, PaymentMethod } from "@/lib/types";
 
 export const ORDER_STATUS_META: Record<
   OrderStatus,
@@ -27,6 +27,19 @@ export const ORDER_STATUS_META: Record<
     label: "Cancelado",
     className: "bg-red-100 text-red-800 dark:bg-red-500/20 dark:text-red-300",
   },
+};
+
+export const ORDER_TYPE_META: Record<OrderType, { label: string; icon: string }> = {
+  en_local: { label: "En el local", icon: "🍽️" },
+  pickup: { label: "Para llevar", icon: "🥡" },
+  delivery: { label: "A domicilio", icon: "🛵" },
+  en_mesa: { label: "Mesa", icon: "🪑" },
+};
+
+export const PAYMENT_METHOD_META: Record<PaymentMethod, { label: string; icon: string }> = {
+  efectivo: { label: "Efectivo", icon: "💵" },
+  tarjeta: { label: "Tarjeta", icon: "💳" },
+  transferencia: { label: "Transferencia", icon: "🏦" },
 };
 
 /** Siguiente estado en el flujo normal, o null si ya es terminal. */

@@ -8,7 +8,10 @@ export type OrderStatus =
   | "entregado"
   | "cancelado";
 
-export type OrderType = "delivery" | "pickup";
+export type OrderType = "delivery" | "pickup" | "en_local" | "en_mesa";
+export type OrderOrigin = "web" | "pdv";
+export type PaymentMethod = "efectivo" | "tarjeta" | "transferencia";
+export type PaymentStatus = "no_pagado" | "pagado";
 export type StaffRole = "admin" | "cajero" | "cocina";
 export type InventoryMoveType = "entrada" | "salida";
 
@@ -68,6 +71,28 @@ export interface ProductWithModifiers extends Product {
   modifier_groups: ModifierGroupWithOptions[];
 }
 
+export interface Sala {
+  id: string;
+  name: string;
+  sort_order: number;
+  active: boolean;
+  created_at: string;
+}
+
+export interface Mesa {
+  id: string;
+  sala_id: string;
+  name: string;
+  sort_order: number;
+  active: boolean;
+  created_at: string;
+}
+
+/** Una sala con sus mesas (para el PDV). */
+export interface SalaWithMesas extends Sala {
+  mesas: Mesa[];
+}
+
 export interface Order {
   id: string;
   code: string;
@@ -79,6 +104,54 @@ export interface Order {
   notes: string | null;
   total: number;
   created_at: string;
+  origin: OrderOrigin;
+  payment_status: PaymentStatus;
+  /** Costo de envío incluido en `total` (solo domicilio). */
+  delivery_fee: number;
+  mesa_id: string | null;
+  /** Nombre de quien tomó el pedido en el PDV. */
+  served_by: string | null;
+  closed_at: string | null;
+}
+
+export interface OrderPayment {
+  id: string;
+  order_id: string;
+  method: PaymentMethod;
+  amount: number;
+  /** Efectivo recibido (para el cambio); null en tarjeta/transferencia. */
+  received: number | null;
+  created_by: string | null;
+  created_at: string;
+  cash_session_id?: string | null;
+}
+
+export type CashMovementType = "ingreso" | "gasto";
+
+export interface CashSession {
+  id: string;
+  opened_at: string;
+  opened_by: string | null;
+  opening_amount: number;
+  closed_at: string | null;
+  closed_by: string | null;
+  /** Efectivo contado al cerrar (arqueo). */
+  closing_amount: number | null;
+  /** Efectivo esperado según el sistema al cerrar. */
+  expected_amount: number | null;
+  notes: string | null;
+}
+
+export interface CashMovement {
+  id: string;
+  session_id: string;
+  type: CashMovementType;
+  category: string | null;
+  method: PaymentMethod;
+  amount: number;
+  notes: string | null;
+  created_by: string | null;
+  created_at: string;
 }
 
 export interface OrderItem {
@@ -89,6 +162,16 @@ export interface OrderItem {
   quantity: number;
   unit_price: number;
   notes: string | null;
+  /** Presente cuando la consulta trae las opciones de la línea. */
+  order_item_modifiers?: OrderItemModifier[];
+}
+
+export interface OrderItemModifier {
+  id: string;
+  order_item_id: string;
+  modifier_name: string;
+  extra_price: number;
+  group_name: string | null;
 }
 
 /** Una categoría con sus productos disponibles (para el storefront). */
@@ -99,4 +182,9 @@ export interface MenuCategory extends Category {
 /** Un pedido con sus líneas (para el panel y la cocina). */
 export interface OrderWithItems extends Order {
   order_items: OrderItem[];
+}
+
+/** Un pedido con líneas y pagos (para el PDV). */
+export interface OrderFull extends OrderWithItems {
+  order_payments: OrderPayment[];
 }

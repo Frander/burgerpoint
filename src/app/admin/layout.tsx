@@ -5,10 +5,13 @@ import { signOut } from "@/app/admin/actions";
 
 const NAV = [
   { href: "/admin", label: "Inicio" },
+  { href: "/admin/pdv", label: "PDV" },
   { href: "/admin/pedidos", label: "Pedidos" },
   { href: "/admin/cocina", label: "Cocina" },
   { href: "/admin/menu", label: "Menú" },
+  { href: "/admin/mesas", label: "Mesas" },
   { href: "/admin/inventario", label: "Inventario" },
+  { href: "/admin/caja", label: "Caja" },
   { href: "/admin/reportes", label: "Reportes" },
 ];
 
