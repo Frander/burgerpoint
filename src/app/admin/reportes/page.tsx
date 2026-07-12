@@ -30,8 +30,17 @@ function dayLabel(key: string): string {
 interface OrderRow {
   total: number;
   created_at: string;
+  type: string;
+  origin: string;
   order_items: { product_name: string; quantity: number }[];
 }
+
+const TYPE_LABELS: Record<string, string> = {
+  en_mesa: "🪑 En mesa",
+  en_local: "🍽️ En el local",
+  pickup: "🥡 Para llevar",
+  delivery: "🛵 A domicilio",
+};
 
 export default async function ReportesPage() {
   if (!isSupabaseConfigured()) {
@@ -49,14 +58,16 @@ export default async function ReportesPage() {
   const since = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString();
   const { data } = await supabase
     .from("orders")
-    .select("total, created_at, order_items(product_name, quantity)")
+    .select("total, created_at, type, origin, order_items(product_name, quantity)")
     .neq("status", "cancelado")
     .gte("created_at", since);
 
   const orders = (data ?? []) as OrderRow[];
 
-  // Agregación por día.
+  // Agregación por día, por tipo de servicio y por origen.
   const byDay = new Map<string, { total: number; count: number }>();
+  const byType = new Map<string, { total: number; count: number }>();
+  const byOrigin = new Map<string, { total: number; count: number }>();
   const topProducts = new Map<string, number>();
   for (const o of orders) {
     const key = dayKey(new Date(o.created_at));
@@ -64,6 +75,17 @@ export default async function ReportesPage() {
     agg.total += Number(o.total);
     agg.count += 1;
     byDay.set(key, agg);
+
+    const t = byType.get(o.type) ?? { total: 0, count: 0 };
+    t.total += Number(o.total);
+    t.count += 1;
+    byType.set(o.type, t);
+
+    const g = byOrigin.get(o.origin ?? "web") ?? { total: 0, count: 0 };
+    g.total += Number(o.total);
+    g.count += 1;
+    byOrigin.set(o.origin ?? "web", g);
+
     for (const item of o.order_items ?? []) {
       topProducts.set(
         item.product_name,
@@ -136,6 +158,64 @@ export default async function ReportesPage() {
                 <span className="w-24 shrink-0 text-right font-medium">
                   {formatMoney(d.total)}
                 </span>
+              </div>
+            );
+          })}
+        </div>
+      </section>
+
+      <section>
+        <h2 className="mb-3 text-lg font-semibold">
+          Análisis por tipo de servicio
+        </h2>
+        <div className="overflow-x-auto">
+          <table className="w-full text-left text-sm">
+            <thead>
+              <tr className="border-b border-black/10 text-xs uppercase text-black/50 dark:border-white/10 dark:text-white/50">
+                <th className="py-2 pr-3">Tipo de servicio</th>
+                <th className="py-2 pr-3">Pedidos</th>
+                <th className="py-2 pr-3">Ventas</th>
+                <th className="py-2">Ticket promedio</th>
+              </tr>
+            </thead>
+            <tbody>
+              {(["en_mesa", "en_local", "pickup", "delivery"] as const).map(
+                (t) => {
+                  const d = byType.get(t) ?? { total: 0, count: 0 };
+                  return (
+                    <tr
+                      key={t}
+                      className="border-b border-black/5 dark:border-white/5"
+                    >
+                      <td className="py-2 pr-3">{TYPE_LABELS[t] ?? t}</td>
+                      <td className="py-2 pr-3">{d.count}</td>
+                      <td className="py-2 pr-3 font-medium">
+                        {formatMoney(d.total)}
+                      </td>
+                      <td className="py-2">
+                        {d.count > 0 ? formatMoney(d.total / d.count) : "—"}
+                      </td>
+                    </tr>
+                  );
+                },
+              )}
+            </tbody>
+          </table>
+        </div>
+        <div className="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-2">
+          {["pdv", "web"].map((g) => {
+            const d = byOrigin.get(g) ?? { total: 0, count: 0 };
+            return (
+              <div
+                key={g}
+                className="rounded-lg bg-black/[.03] px-3 py-2 text-sm dark:bg-white/[.05]"
+              >
+                <span className="text-black/60 dark:text-white/60">
+                  Origen {g.toUpperCase()}
+                </span>
+                <p className="font-semibold">
+                  {d.count} pedidos · {formatMoney(d.total)}
+                </p>
               </div>
             );
           })}
