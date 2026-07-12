@@ -1,0 +1,21 @@
+{
+  "supabaseUrl": "https://TU-PROYECTO.supabase.co",
+  "supabaseAnonKey": "tu-anon-key",
+  "email": "usuario-staff@ejemplo.com",
+  "password": "contraseña-del-staff",
+
+  "printerShare": "\\\\localhost\\POS80",
+  "printerName": "",
+
+  "columns": 48,
+  "copies": { "cliente": 1, "cocina": 1 },
+  "autoPrint": { "cliente": true, "cocina": true },
+  "printOnStatus": ["en_cocina"],
+  "dryRun": false,
+
+  "business": {
+    "name": "Burguer Point",
+    "address": "México 188 246, Ticul, 97864 Ticul, Yuc., México",
+    "siteUrl": "https://tu-dominio.com"
+  }
+}

@@ -37,6 +37,12 @@ yarn-error.log*
 # vercel
 .vercel
 
+# agente de impresión (credenciales y archivos locales)
+print-agent/node_modules
+print-agent/config.json
+print-agent/state.json
+print-agent/out/
+
 # typescript
 *.tsbuildinfo
 next-env.d.ts
