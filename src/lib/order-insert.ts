@@ -149,7 +149,11 @@ export async function priceLines(
   return { lines };
 }
 
-/** Inserta las líneas (y sus opciones) de un pedido ya creado. */
+/**
+ * Inserta las líneas (y sus opciones) de un pedido ya creado.
+ * Los ids se generan aquí (sin RETURNING): el rol anónimo puede INSERTar
+ * pedidos pero no leerlos, y `insert().select()` requeriría SELECT.
+ */
 export async function insertLines(
   supabase: SupabaseClient,
   orderId: string,
@@ -157,20 +161,19 @@ export async function insertLines(
 ): Promise<{ ok: boolean; error?: string }> {
   for (const line of lines) {
     const { modifiers, ...itemRow } = line;
-    const { data: inserted, error: itemErr } = await supabase
+    const itemId = randomUUID();
+    const { error: itemErr } = await supabase
       .from("order_items")
-      .insert({ ...itemRow, order_id: orderId })
-      .select("id")
-      .single();
+      .insert({ ...itemRow, id: itemId, order_id: orderId });
 
-    if (itemErr || !inserted) {
+    if (itemErr) {
       return { ok: false, error: "No se pudieron guardar los productos." };
     }
 
     if (modifiers.length > 0) {
       const { error: modErr } = await supabase.from("order_item_modifiers").insert(
         modifiers.map((m) => ({
-          order_item_id: inserted.id,
+          order_item_id: itemId,
           modifier_name: m.modifier_name,
           extra_price: m.extra_price,
           group_name: m.group_name,
