@@ -141,8 +141,8 @@ npm run dev    # http://localhost:3000
 Ordenados por impacto/facilidad. Elegir desde aquí en la próxima sesión:
 
 ### 1. Deploy a Vercel ✅ HECHO (13 jul 2026)
-- **URL de producción: https://burgerpoint-franders-projects.vercel.app**
-- Proyecto `burgerpoint` (cuenta frander), deploy vía Vercel CLI.
+- **URL de producción: https://burgerpoint-view.vercel.app**
+- Proyecto `burgerpoint-view` (el que ya existía, cuenta frander), deploy vía Vercel CLI.
 - Variables de entorno cargadas (Supabase, nombre, `NEXT_PUBLIC_SITE_URL`
   para el QR de los tickets).
 - Protección SSO de Vercel ajustada a "solo previews" (producción pública).
