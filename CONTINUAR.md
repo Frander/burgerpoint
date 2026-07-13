@@ -140,12 +140,19 @@ npm run dev    # http://localhost:3000
 
 Ordenados por impacto/facilidad. Elegir desde aquí en la próxima sesión:
 
-### 1. Deploy a Vercel (recomendado primero) 🚀
-Poner el sitio en línea con un dominio real.
-- Subir el repo a GitHub.
-- Importar en vercel.com, agregar las variables de entorno (las de `.env.local`).
-- Configurar dominio.
-- Verificar que Realtime y los Server Actions funcionan en producción.
+### 1. Deploy a Vercel ✅ HECHO (13 jul 2026)
+- **URL de producción: https://burgerpoint-franders-projects.vercel.app**
+- Proyecto `burgerpoint` (cuenta frander), deploy vía Vercel CLI.
+- Variables de entorno cargadas (Supabase, nombre, `NEXT_PUBLIC_SITE_URL`
+  para el QR de los tickets).
+- Protección SSO de Vercel ajustada a "solo previews" (producción pública).
+- Verificado en producción: login, PDV con Realtime "En vivo", menú público
+  (78 productos), rutas admin protegidas.
+- Siguiente: **dominio propio** (vercel.com → proyecto → Settings → Domains);
+  al agregarlo, actualizar `NEXT_PUBLIC_SITE_URL` en Vercel y
+  `business.siteUrl` en `print-agent/config.json`, y redeploy.
+- Nuevos deploys: `vercel deploy --prod` desde la carpeta del proyecto
+  (o conectar el repo a GitHub para deploys automáticos).
 
 ### 2. Fotos de productos (Supabase Storage) ✅ HECHO (29 may 2026)
 - Bucket público `product-images` vía `0004_storage.sql` (correr en SQL Editor).
