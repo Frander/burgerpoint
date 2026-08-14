@@ -1,8 +1,10 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { after } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { requireProfile } from "@/lib/supabase/auth";
+import { notifyOrderStatus } from "@/lib/whatsapp/notify";
 import { getProduct } from "@/lib/menu";
 import {
   insertLines,
@@ -179,6 +181,9 @@ export async function finalizeOrder(orderId: string): Promise<PdvActionResult> {
     .update({ status: "entregado", closed_at: new Date().toISOString() })
     .eq("id", orderId);
   if (error) return { ok: false, error: error.message };
+  after(async () => {
+    await notifyOrderStatus(orderId, "entregado");
+  });
   revalidatePdv();
   return { ok: true, orderId };
 }
@@ -192,6 +197,9 @@ export async function cancelOrder(orderId: string): Promise<PdvActionResult> {
     .update({ status: "cancelado", closed_at: new Date().toISOString() })
     .eq("id", orderId);
   if (error) return { ok: false, error: error.message };
+  after(async () => {
+    await notifyOrderStatus(orderId, "cancelado");
+  });
   revalidatePdv();
   return { ok: true, orderId };
 }

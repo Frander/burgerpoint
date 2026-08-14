@@ -1,0 +1,259 @@
+===========================================================
+  BURGER POINT - CONECTAR WHATSAPP (API oficial de Meta)
+  Todo el codigo ya esta listo. Falta conectar tu app.
+===========================================================
+
+QUE VA A PASAR CUANDO TERMINES ESTOS PASOS
+------------------------------------------
+  1. Te llega un WhatsApp cada vez que entra un pedido.
+  2. El cliente recibe avisos cuando su pedido avanza
+     (en preparacion / listo / entregado / cancelado).
+  3. Los clientes pueden PEDIR por WhatsApp: el bot les
+     muestra el menu, arma el pedido con sus opciones,
+     lo confirma y lo manda a cocina.
+
+Orden recomendado: PASO 1 al 5 en Meta, luego PASO 6
+(subir secretos) y PASO 7 (dar de alta el webhook).
+
+
+-----------------------------------------------------------
+ANTES DE EMPEZAR - dos advertencias
+-----------------------------------------------------------
+* El numero que conectes a la API DEJA DE FUNCIONAR en la
+  app normal de WhatsApp. Usa un numero dedicado al negocio,
+  NO tu celular personal.
+* El numero que RECIBE las alertas debe ser otro distinto
+  (un WhatsApp normal, el celular del encargado).
+
+
+-----------------------------------------------------------
+PASO 1 - CREAR LA APP EN META
+-----------------------------------------------------------
+1. Entra a https://developers.facebook.com
+2. Mis Apps > Crear app > caso de uso "WhatsApp".
+3. Asociala a tu portafolio de negocio.
+4. En el menu lateral: WhatsApp > Configuracion de la API.
+5. Anota el "Identificador del numero de telefono"
+   (Phone number ID). Es un numero largo, NO el telefono.
+   -> lo vas a usar como WHATSAPP_PHONE_NUMBER_ID
+
+
+-----------------------------------------------------------
+PASO 2 - EL APP SECRET
+-----------------------------------------------------------
+1. En la app: Configuracion > Basica.
+2. Campo "Clave secreta de la app" > Mostrar.
+   -> lo vas a usar como WHATSAPP_APP_SECRET
+
+Esto es lo que permite comprobar que un mensaje viene
+de verdad de Meta y no de alguien que descubrio la URL.
+
+
+-----------------------------------------------------------
+PASO 3 - TOKEN PERMANENTE (no el de 24 horas)
+-----------------------------------------------------------
+El token que Meta muestra al principio EXPIRA EN 24 HORAS.
+Para uno permanente:
+
+1. https://business.facebook.com > Configuracion del negocio.
+2. Usuarios > Usuarios del sistema > Agregar.
+   Nombre: "burgerpoint-api"   Rol: Administrador.
+3. Boton "Agregar activos" > selecciona tu app de WhatsApp
+   y tu cuenta de WhatsApp Business, con control total.
+4. Boton "Generar nuevo token":
+   - App: la tuya
+   - Caducidad: NUNCA
+   - Permisos: whatsapp_business_messaging
+               whatsapp_business_management
+5. Copialo COMPLETO (empieza con EAA...). Solo se muestra
+   una vez.
+   -> lo vas a usar como WHATSAPP_ACCESS_TOKEN
+
+
+-----------------------------------------------------------
+PASO 4 - INVENTAR EL TOKEN DE VERIFICACION
+-----------------------------------------------------------
+Este NO te lo da Meta: te lo inventas tu. Es una contrasena
+que Meta te repite al dar de alta el webhook, para probar
+que la URL es tuya.
+
+Inventa algo largo, por ejemplo:
+   burgerpoint-webhook-2026-xY7k
+
+   -> lo vas a usar como WHATSAPP_VERIFY_TOKEN
+Apuntalo: lo necesitas en el PASO 6 y otra vez en el PASO 7,
+y tiene que ser EXACTAMENTE igual en los dos lados.
+
+
+-----------------------------------------------------------
+PASO 5 - REGISTRAR LAS 2 PLANTILLAS
+-----------------------------------------------------------
+En WhatsApp Manager > Herramientas > Plantillas de mensajes.
+Meta tarda de minutos a un par de dias en aprobarlas.
+
+PLANTILLA 1
+   Nombre:    pedido_nuevo_alerta
+   Categoria: Utilidad (Utility)
+   Idioma:    Espanol (Mexico)  es_MX
+   Cuerpo:
+      Nuevo pedido {{1}}
+      Tipo: {{2}}
+      Cliente: {{3}}
+      Total: {{4}}
+   Ejemplos:  260729-0001 | A domicilio | Juan Perez | MXN 199.00
+
+PLANTILLA 2
+   Nombre:    pedido_estado
+   Categoria: Utilidad (Utility)
+   Idioma:    Espanol (Mexico)  es_MX
+   Cuerpo:
+      Hola {{1}}, tu pedido {{2}} ahora esta: {{3}}
+   Ejemplos:  Juan Perez | 260729-0001 | Listo
+
+(La plantilla 2 solo se usa para avisar a quien pidio por la
+web. A quien pide por WhatsApp se le avisa gratis.)
+
+
+-----------------------------------------------------------
+PASO 6 - SUBIR LOS SECRETOS A VERCEL
+-----------------------------------------------------------
+Abre la Terminal en la carpeta del proyecto y pega estos
+comandos UNO POR UNO. Cambia lo que va entre comillas por
+tus valores reales de los pasos anteriores.
+
+   cd "/Volumes/FranderSSD/respaldo dic 2025/burgerpoint"
+
+   echo "EAAxxxxxxxxPEGA-AQUI-TU-TOKEN" | vercel env add WHATSAPP_ACCESS_TOKEN production
+
+   echo "123456789012345" | vercel env add WHATSAPP_PHONE_NUMBER_ID production
+
+   echo "5219991234567" | vercel env add WHATSAPP_ALERT_TO production
+
+   echo "burgerpoint-webhook-2026-xY7k" | vercel env add WHATSAPP_VERIFY_TOKEN production
+
+   echo "tu-app-secret-de-meta" | vercel env add WHATSAPP_APP_SECRET production
+
+Notas:
+ * WHATSAPP_ALERT_TO es el celular que recibe las alertas,
+   con lada de pais y SIN el signo +.  Ej: 5219991234567
+ * SUPABASE_SERVICE_ROLE_KEY ya esta cargada, no la toques.
+
+OPCIONALES (solo si los quieres):
+
+   # Cobrar envio en los pedidos del bot (30 pesos):
+   echo "30" | vercel env add WHATSAPP_DELIVERY_FEE production
+
+   # Avisar el estado tambien a quien pidio por la WEB.
+   # OJO: esos avisos SI cuestan (~USD 0.008 c/u).
+   echo "1" | vercel env add WHATSAPP_STATUS_TEMPLATES production
+
+Cuando termines, publica los cambios:
+
+   vercel deploy --prod
+
+Para revisar que quedaron cargadas:
+
+   vercel env ls
+
+
+-----------------------------------------------------------
+PASO 7 - DAR DE ALTA EL WEBHOOK
+-----------------------------------------------------------
+Esto es lo que hace que los mensajes de los clientes lleguen
+al sistema. HAZLO DESPUES del PASO 6: si las variables no
+estan arriba, Meta no va a poder verificar la URL.
+
+1. En tu app de Meta: WhatsApp > Configuracion.
+2. Seccion "Webhook" > boton Editar.
+3. Llena los dos campos:
+
+   URL de devolucion de llamada:
+      https://burgerpoint-view.vercel.app/api/whatsapp
+
+   Token de verificacion:
+      el mismo del PASO 4
+      (burgerpoint-webhook-2026-xY7k)
+
+4. Boton "Verificar y guardar".
+   Si dice error, casi siempre es que el token no es
+   identico al que subiste a Vercel, o que falto el deploy.
+
+5. Abajo, en "Campos del webhook" > Administrar:
+   marca la casilla  messages  y suscribete.
+   (Si no marcas eso, no llega ningun mensaje.)
+
+
+-----------------------------------------------------------
+PASO 8 - PROBAR
+-----------------------------------------------------------
+Desde tu celular personal, manda un WhatsApp al numero del
+negocio con la palabra:   hola
+
+Deberia contestarte el menu en segundos. Luego prueba:
+   - elegir una categoria por numero
+   - elegir un producto
+   - elegir sus opciones
+   - decir cuantos quieres
+   - 2 para confirmar, 1 para llevar, tu nombre, 1 confirmar
+
+El pedido debe aparecer en el panel (Pedidos, origen
+WhatsApp) y debe llegarte la alerta al numero del encargado.
+
+Diagnostico si algo falla (en la Terminal):
+
+   node --env-file=.env.local scripts/whatsapp-test.mjs
+
+Eso revisa el token, el numero emisor y si las plantillas
+estan aprobadas. Sirve para saber si el problema es de
+configuracion en Meta o del sistema.
+
+
+-----------------------------------------------------------
+LO QUE ENTIENDE EL BOT
+-----------------------------------------------------------
+El cliente puede escribir en cualquier momento:
+
+   menu      - ver el menu otra vez
+   carrito   - ver lo que lleva
+   estado    - como va su ultimo pedido
+   cancelar  - borrar lo que llevaba y empezar de nuevo
+   ayuda     - la lista de comandos
+   baja      - dejar de recibir mensajes
+
+Todo lo demas se responde con NUMEROS (1, 2, 3...). Si el
+cliente escribe el nombre de un platillo, el bot lo busca.
+
+
+-----------------------------------------------------------
+CUANTO CUESTA
+-----------------------------------------------------------
+   Bot recibiendo pedidos ................. GRATIS
+   Avisos a quien pidio por WhatsApp ...... GRATIS
+   Alerta de pedido nuevo al encargado .... ~USD 0.008 c/u
+   Avisos a quien pidio por la web ........ ~USD 0.008 c/u
+                                             (apagado por defecto)
+
+Lo gratis es porque Meta no cobra nada dentro de las 24 h
+siguientes al ultimo mensaje del cliente. La alerta al
+encargado siempre cuesta: el nunca nos escribe.
+
+A 100 pedidos diarios, la alerta sale en ~USD 24 al mes.
+
+
+-----------------------------------------------------------
+SI ALGO FALLA
+-----------------------------------------------------------
+"Meta no verifica la URL"
+   - El token de verificacion no es identico en los dos
+     lados, o falto correr  vercel deploy --prod.
+
+"No llega nada cuando escribo al numero"
+   - Falto suscribir el campo  messages  (PASO 7.5).
+
+"El bot no contesta pero el webhook si recibe"
+   - Token de acceso vencido (usaste el de 24 h en vez del
+     permanente). Repite el PASO 3.
+
+"No me llega la alerta de pedido nuevo"
+   - La plantilla pedido_nuevo_alerta no esta aprobada, o
+     WHATSAPP_ALERT_TO tiene el signo + o le falta la lada.

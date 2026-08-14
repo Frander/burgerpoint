@@ -55,7 +55,10 @@ export default async function PedidosPage({
   const estado = STATUSES.includes(sp.estado as OrderStatus)
     ? (sp.estado as OrderStatus)
     : null;
-  const origen = sp.origen === "web" || sp.origen === "pdv" ? sp.origen : null;
+  const origen =
+    sp.origen === "web" || sp.origen === "pdv" || sp.origen === "whatsapp"
+      ? sp.origen
+      : null;
 
   const supabase = await createClient();
   let query = supabase
@@ -130,6 +133,7 @@ export default async function PedidosPage({
             <option value="">Todos</option>
             <option value="pdv">PDV</option>
             <option value="web">WEB</option>
+            <option value="whatsapp">WhatsApp</option>
           </select>
         </label>
         <button

@@ -203,7 +203,7 @@ export default async function ReportesPage() {
           </table>
         </div>
         <div className="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-2">
-          {["pdv", "web"].map((g) => {
+          {["pdv", "web", "whatsapp"].map((g) => {
             const d = byOrigin.get(g) ?? { total: 0, count: 0 };
             return (
               <div

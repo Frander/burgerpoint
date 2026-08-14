@@ -37,7 +37,7 @@ export async function GET(request: NextRequest) {
     .order("created_at", { ascending: false })
     .limit(2000);
   if (estado) query = query.eq("status", estado);
-  if (origen && (origen === "web" || origen === "pdv"))
+  if (origen && (origen === "web" || origen === "pdv" || origen === "whatsapp"))
     query = query.eq("origin", origen);
 
   const { data, error } = await query;

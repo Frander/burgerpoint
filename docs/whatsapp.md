@@ -56,9 +56,10 @@ Archivos: `src/lib/whatsapp/{config,phone,client,notify}.ts`,
 
 ## ⚠️ Lo que tienes que hacer tú
 
-### 1. Correr la migración
-`supabase/migrations/0008_whatsapp.sql` en Supabase → SQL Editor. Crea
-`wa_contacts` y `wa_messages`, y agrega `'whatsapp'` al enum `order_origin`.
+### 1. Correr las migraciones
+`0008_whatsapp.sql` (contactos, bitácora y `'whatsapp'` en el enum
+`order_origin`) y `0009_wa_bot.sql` (memoria de las conversaciones).
+**Ya aplicadas en la base de producción el 13 ago 2026.**
 
 ### 2. Dar de alta la app en Meta
 En <https://developers.facebook.com>: app con el caso de uso de WhatsApp,
@@ -91,8 +92,17 @@ En `.env.local` y en Vercel (ver `.env.example`):
 WHATSAPP_ACCESS_TOKEN=...        # token permanente
 WHATSAPP_PHONE_NUMBER_ID=...     # id numérico del emisor
 WHATSAPP_ALERT_TO=52999...       # destino de la alerta, sin '+'
+WHATSAPP_VERIFY_TOKEN=...        # lo inventas tú; se repite en Meta
+WHATSAPP_APP_SECRET=...          # valida la firma del webhook
 SUPABASE_SERVICE_ROLE_KEY=...    # ya la tienes; ahora sí se usa
 ```
+
+### 5. Dar de alta el webhook en Meta
+URL `https://<tu-dominio>/api/whatsapp`, el token de verificación del paso
+anterior, y **suscribir el campo `messages`** (sin eso no llega nada).
+
+> **`CONFIGURAR-WHATSAPP.txt`** (en la raíz) tiene todo esto en pasos, con los
+> comandos de `vercel env add` listos para copiar.
 
 ---
 
@@ -110,21 +120,95 @@ tocar la app.
 
 ---
 
-## 🔜 Siguientes fases
+## ✅ Fase 2 — Estados del pedido al cliente (hecha)
 
-- **Fase 2 — Estados del pedido al cliente.** Al cambiar el estado, avisar al
-  teléfono del pedido. La lógica de ahorro ya está lista (`hasOpenWindow()`):
-  dentro de la ventana va como texto libre gratis, fuera como plantilla.
-  Falta la plantilla `pedido_estado` y enganchar el cambio de estado.
-- **Fase 3 — Webhook de entrada.** `GET` para la verificación de Meta y `POST`
-  para recibir, validando la firma `X-Hub-Signature-256` con el App Secret y
-  deduplicando por `wamid` (Meta reintenta). Responder 200 al instante y
-  procesar con `after()`. Aquí se llena `wa_contacts.last_inbound_at`, que es lo
-  que hace gratis a la fase 2.
-- **Fase 4 — Bot con menú numerado**, sin LLM, para dejar probadas las
-  herramientas de carrito y la creación del pedido contra `priceLines()`.
-- **Fase 5 — DeepSeek** encima de esas herramientas, con confirmación explícita
-  del cliente antes de crear el pedido.
+Al cambiar el estado de un pedido se avisa al teléfono que lo hizo. Estados que
+avisan: `en_cocina`, `listo`, `entregado`, `cancelado` (`nuevo` no: el cliente
+acaba de pedir). En `listo` el texto cambia según el tipo — "va en camino" a
+domicilio, "listo para recoger" en pickup.
 
-El orden importa: si el LLM entra antes de que la creación de pedidos esté
-probada, se depuran dos sistemas a la vez.
+- Enganchado en `updateOrderStatus()` (panel y cocina) y en
+  `finalizeOrder()` / `cancelOrder()` del PDV. Todo con `after()`: el staff no
+  espera a la Graph API al mover una tarjeta.
+- **Elige el canal más barato que funcione.** Con la ventana de 24 h abierta va
+  como texto libre (gratis); cerrada, como plantilla de pago — y solo si
+  `WHATSAPP_STATUS_TEMPLATES` está encendido. Apagado por defecto: encenderlo
+  es una decisión de dinero, no técnica.
+- Respeta `opted_out`: quien pidió la baja no recibe nada, ni gratis.
+- Idempotente por `(order_id, 'estado:<status>')`: aunque el staff avance y
+  retroceda el estado, cada aviso sale una sola vez.
+
+Archivo: `notifyOrderStatus()` en `src/lib/whatsapp/notify.ts`.
+
+---
+
+## ✅ Fase 3 — Webhook de entrada (hecha)
+
+`src/app/api/whatsapp/route.ts`:
+
+- **GET** — verificación de Meta: compara `hub.verify_token` y devuelve el
+  `hub.challenge` en texto plano.
+- **POST** — mensajes entrantes. Valida la firma `X-Hub-Signature-256` (HMAC
+  SHA-256 del **cuerpo crudo**: parsear y volver a serializar rompería la
+  comparación byte a byte), contesta 200 de inmediato y procesa en `after()`,
+  porque si Meta no recibe respuesta en pocos segundos reintenta el evento.
+- Sin `WHATSAPP_APP_SECRET` el webhook responde 503: la URL es pública y la
+  firma es lo único que separa a Meta de cualquiera que la descubra.
+- Deduplicación por `wamid` (índice único de `wa_messages`): el reintento de
+  Meta no vuelve a contestarle al cliente.
+- Cada mensaje entrante actualiza `wa_contacts.last_inbound_at`, que es lo que
+  hace gratis a la fase 2.
+
+También registra los acuses (`sent` → `delivered` → `read`) en la bitácora.
+
+---
+
+## ✅ Fase 4 — Bot de pedidos (hecha)
+
+Menús numerados, sin IA. `src/lib/whatsapp/bot.ts` es una máquina de estados y
+`wa_sessions` (migración `0009_wa_bot.sql`) es su memoria, porque WhatsApp
+manda cada mensaje suelto.
+
+Flujo: categorías → productos → grupos de opciones (respeta `min_select` /
+`max_select`, admite `1,3` para múltiples y `0` para ninguna) → cantidad →
+carrito → para llevar o domicilio → nombre → dirección → confirmación → pedido.
+
+- El pedido se crea con `insertOrder()`, el mismo camino que la web y el PDV:
+  **los precios se recalculan contra la base**, así que lo que quedó guardado
+  en la sesión sirve para mostrar, nunca para cobrar.
+- Origen `whatsapp`, visible en el historial, los reportes y el ticket.
+- Comandos globales en cualquier paso: `menu`, `carrito`, `estado`, `cancelar`,
+  `ayuda`, `baja`. Si escriben el nombre de un platillo, lo busca.
+- Las conversaciones abandonadas se borran solas a las 6 h
+  (`wa_prune_sessions()`, llamada desde el webhook: no hace falta cron).
+- La alerta interna se vuelve a disparar desde el bot (`alertaPedidoBot`)
+  porque el `after()` de `insertOrder` corre anidado dentro del `after()` del
+  webhook y Next puede descartarlo. Es seguro: el índice único cancela el
+  duplicado.
+
+### Probarlo sin Meta
+
+Con `WHATSAPP_SIMULATOR=1` en `.env.local` se habilita `/api/whatsapp/simular`,
+que devuelve lo que el bot contestaría en vez de mandarlo:
+
+```bash
+npm run dev
+node scripts/whatsapp-bot-sim.mjs                  # conversación en la terminal
+node scripts/whatsapp-bot-sim.mjs "hola|2|1|1,3|0|2"  # guion automático
+```
+
+Y para comprobar la firma del webhook como la manda Meta:
+
+```bash
+node --env-file=.env.local scripts/whatsapp-webhook-test.mjs "hola"
+node --env-file=.env.local scripts/whatsapp-webhook-test.mjs "hola" --mala  # debe dar 401
+```
+
+---
+
+## 🔜 Siguiente fase
+
+- **Fase 5 — DeepSeek** encima de estas mismas herramientas (catálogo, carrito,
+  `priceLines()`), con confirmación explícita del cliente antes de crear el
+  pedido. El orden importaba: con la creación de pedidos ya probada, el LLM se
+  depura solo, sin arrastrar dos sistemas a la vez.

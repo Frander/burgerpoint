@@ -42,6 +42,12 @@ print-agent/node_modules
 print-agent/config.json
 print-agent/state.json
 print-agent/out/
+# el zip para llevar a la PC de la caja incluye config.json (usuario y
+# contraseña del staff): nunca debe subirse al repo.
+print-agent*.zip
+
+# artefactos del CLI de Supabase (refs y versiones del proyecto enlazado)
+supabase/.temp/
 
 # typescript
 *.tsbuildinfo

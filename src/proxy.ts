@@ -11,7 +11,9 @@ export const config = {
     /*
      * Ejecuta en todas las rutas excepto archivos estáticos e imágenes:
      * - _next/static, _next/image, favicon, y archivos con extensión.
+     * - api/whatsapp: el webhook de Meta no trae cookies de sesión y hay que
+     *   contestarle en pocos segundos; refrescar la sesión ahí solo estorba.
      */
-    "/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)",
+    "/((?!_next/static|_next/image|favicon.ico|api/whatsapp|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)",
   ],
 };

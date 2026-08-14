@@ -9,7 +9,7 @@ export type OrderStatus =
   | "cancelado";
 
 export type OrderType = "delivery" | "pickup" | "en_local" | "en_mesa";
-export type OrderOrigin = "web" | "pdv";
+export type OrderOrigin = "web" | "pdv" | "whatsapp";
 export type PaymentMethod = "efectivo" | "tarjeta" | "transferencia";
 export type PaymentStatus = "no_pagado" | "pagado";
 export type StaffRole = "admin" | "cajero" | "cocina";

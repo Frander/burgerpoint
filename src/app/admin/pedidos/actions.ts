@@ -1,7 +1,9 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { after } from "next/server";
 import { createClient } from "@/lib/supabase/server";
+import { notifyOrderStatus } from "@/lib/whatsapp/notify";
 import type { OrderStatus } from "@/lib/types";
 
 export async function updateOrderStatus(
@@ -14,6 +16,13 @@ export async function updateOrderStatus(
     .update({ status })
     .eq("id", id);
   if (error) return { ok: false, error: error.message };
+
+  // Aviso al cliente por WhatsApp. Con `after` para que el staff no espere a la
+  // Graph API al mover una tarjeta en cocina.
+  after(async () => {
+    await notifyOrderStatus(id, status);
+  });
+
   revalidatePath("/admin/pedidos");
   revalidatePath("/admin/cocina");
   return { ok: true };

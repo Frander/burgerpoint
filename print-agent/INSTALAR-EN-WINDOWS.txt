@@ -1,0 +1,118 @@
+===========================================================
+  BURGER POINT - IMPRESION AUTOMATICA DE TICKETS
+  Guia rapida de instalacion en la PC de la caja (Windows)
+===========================================================
+
+QUE ES ESTO
+-----------
+Un programita que se queda abierto en la PC de la caja.
+Cada vez que entra un pedido, imprime solo:
+  - la COMANDA para cocina
+  - el TICKET del cliente
+Sin este programa el sistema funciona igual, pero hay que
+imprimir a mano con el boton de la impresora en el panel.
+
+
+-----------------------------------------------------------
+PASO 1 - INSTALAR NODE.JS  (solo la primera vez)
+-----------------------------------------------------------
+1. Entra a:  https://nodejs.org
+2. Descarga el boton verde grande (version "LTS").
+3. Abre el archivo descargado y dale Siguiente, Siguiente,
+   Aceptar, Instalar. No cambies nada.
+4. Reinicia la PC.
+
+
+-----------------------------------------------------------
+PASO 2 - PREPARAR LA IMPRESORA
+-----------------------------------------------------------
+1. Conecta la impresora termica de 80mm por USB y enciendela.
+2. Instala su driver (el CD o el instalador del fabricante).
+3. Ahora hay que COMPARTIRLA. Es importante, si no, no imprime:
+     - Boton Inicio > Configuracion
+     - Bluetooth y dispositivos > Impresoras y escaneres
+     - Haz clic en tu impresora
+     - Propiedades de impresora
+     - Pestana "Compartir"
+     - Marca la casilla "Compartir esta impresora"
+     - En el nombre del recurso escribe exactamente:  POS80
+     - Aceptar
+
+
+-----------------------------------------------------------
+PASO 3 - COPIAR LA CARPETA
+-----------------------------------------------------------
+1. Copia la carpeta  print-agent  completa (viene en la USB)
+   al Escritorio de la PC de la caja.
+2. No le cambies el nombre ni muevas archivos de adentro.
+
+
+-----------------------------------------------------------
+PASO 4 - PROBAR QUE IMPRIME
+-----------------------------------------------------------
+1. Abre la carpeta print-agent.
+2. Doble clic en:   probar-impresion.bat
+3. Debe salir un ticket de prueba de la impresora.
+   - Si sale: listo, todo bien. Cierra la ventana negra.
+   - Si no sale: revisa el PASO 2 (que se llame POS80).
+
+
+-----------------------------------------------------------
+PASO 5 - USARLO TODOS LOS DIAS
+-----------------------------------------------------------
+1. Doble clic en:   iniciar-agente.bat
+2. Se abre una ventana negra con letras. ESO ES NORMAL.
+   DEJALA ABIERTA todo el dia (puedes minimizarla).
+   Si la cierras, deja de imprimir solo.
+3. Al terminar el dia se puede cerrar o apagar la PC.
+
+
+-----------------------------------------------------------
+PASO 6 (OPCIONAL) - QUE ARRANQUE SOLO AL PRENDER LA PC
+-----------------------------------------------------------
+Asi nadie tiene que acordarse de abrirlo:
+1. Clic derecho en  iniciar-agente.bat  > Mostrar mas
+   opciones > Enviar a > Escritorio (crear acceso directo).
+2. Presiona las teclas  Windows + R  al mismo tiempo.
+3. Escribe:  shell:startup   y presiona Enter.
+4. Se abre una carpeta. Arrastra ahi el acceso directo que
+   creaste en el Escritorio.
+Listo: cada vez que prenda la PC, arranca solo.
+
+
+-----------------------------------------------------------
+COMO FUNCIONA (en corto)
+-----------------------------------------------------------
+- El programa se conecta por internet al sistema de pedidos.
+- Cuando un pedido pasa a COCINA, imprime la comanda y el
+  ticket del cliente automaticamente.
+- Cada minuto y medio revisa de nuevo, por si se cayo el
+  internet un momento; los pedidos atrasados salen despues.
+- Lleva cuenta de lo que ya imprimio, asi que NO repite
+  tickets aunque lo cierres y lo vuelvas a abrir.
+
+
+-----------------------------------------------------------
+SI ALGO FALLA
+-----------------------------------------------------------
+"No imprime nada"
+   - Revisa que la ventana negra siga abierta.
+   - Revisa que la impresora este encendida y con papel.
+   - Vuelve a hacer el PASO 4 (probar-impresion.bat).
+
+"Se cerro la ventana negra sola"
+   - Vuelve a dar doble clic en iniciar-agente.bat.
+
+"Dice que 'node' no se reconoce"
+   - No quedo instalado Node.js. Repite el PASO 1 y reinicia.
+
+"Imprime pero salen simbolos raros"
+   - La impresora no es compatible ESC/POS o el driver esta
+     mal. Reinstala el driver del fabricante.
+
+"No hay internet"
+   - No imprime hasta que vuelva. Cuando regrese la conexion,
+     imprime los pedidos que quedaron pendientes.
+
+Mientras tanto siempre se puede imprimir a mano desde el
+panel, con el boton de impresora de cada pedido.

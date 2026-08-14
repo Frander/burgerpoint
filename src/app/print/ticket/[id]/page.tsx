@@ -143,7 +143,12 @@ export default async function TicketPage({
         <div className="text-center">
           <p className="text-[13px]">{formatDateTime(order.created_at)}</p>
           <p className="text-2xl font-extrabold leading-tight">
-            {title} - {order.origin === "pdv" ? "PDV" : "WEB"}
+            {title} -{" "}
+            {order.origin === "pdv"
+              ? "PDV"
+              : order.origin === "whatsapp"
+                ? "WHATSAPP"
+                : "WEB"}
           </p>
           <p className="mt-1 text-[12px]">{order.code}</p>
           {kind === "cocina" && order.served_by && (

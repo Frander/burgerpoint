@@ -112,12 +112,28 @@ existía) y su página daba 404. Ahora sigue visible, apagado y sin poder pedirs
 
 ---
 
-### WhatsApp con la API oficial de Meta — Fase 1 (29 jul 2026)
-Alerta a un número cuando entra cualquier pedido (web, PDV o bot). Se decidió
-conexión **directa con Meta, sin BSP**: la Cloud API no cobra por acceso y un
+### WhatsApp con la API oficial de Meta — Fases 1 a 4 (13 ago 2026)
+Conexión **directa con Meta, sin BSP**: la Cloud API no cobra por acceso y un
 intermediario tipo Twilio casi duplicaría el costo por mensaje.
-**Ver `docs/whatsapp.md`** para el detalle, los costos por flujo, la plantilla a
-registrar y las fases siguientes (estados al cliente, webhook y bot).
+
+- **Fase 1 — alerta interna:** llega un WhatsApp al encargado cuando entra
+  cualquier pedido (web, PDV o bot).
+- **Fase 2 — estados al cliente:** avisos en `en_cocina`, `listo`, `entregado`
+  y `cancelado`. Usa texto libre gratis si la ventana de 24 h está abierta; la
+  plantilla de pago solo si `WHATSAPP_STATUS_TEMPLATES` lo permite (apagado).
+- **Fase 3 — webhook:** `/api/whatsapp` con verificación de Meta, validación de
+  firma HMAC sobre el cuerpo crudo y deduplicación por `wamid`.
+- **Fase 4 — bot de pedidos:** menús numerados; categorías → productos →
+  opciones → cantidad → carrito → entrega → confirmación. Crea el pedido por
+  `insertOrder()` (precios recalculados en el servidor) con origen `whatsapp`.
+  Comandos: `menu`, `carrito`, `estado`, `cancelar`, `ayuda`, `baja`.
+
+Migraciones `0008_whatsapp.sql` y `0009_wa_bot.sql` **ya aplicadas** en la base.
+Falta **conectar la app de Meta**: pasos y comandos en
+**`CONFIGURAR-WHATSAPP.txt`** (raíz). Detalle técnico en `docs/whatsapp.md`.
+
+Se puede probar sin Meta: `WHATSAPP_SIMULATOR=1` y
+`node scripts/whatsapp-bot-sim.mjs`.
 
 ---
 
@@ -132,11 +148,11 @@ Para que el sistema funcione 100% con tu Supabase, faltan estos pasos manuales:
    `createOrder` ya escribe esas columnas. La 0007 crea cajas y registros
    financieros (sin ella, la página Caja te lo indica y el resto funciona).
 
-0a. **WhatsApp (fase 1):** correr `0008_whatsapp.sql`, dar de alta la app en
-   Meta, registrar la plantilla `pedido_nuevo_alerta` y poner las variables
-   `WHATSAPP_*` en `.env.local` y en Vercel. Pasos detallados en
-   `docs/whatsapp.md`. Sin esto la alerta simplemente no se manda; los pedidos
-   funcionan igual.
+0a. **WhatsApp:** las migraciones `0008` y `0009` ya están aplicadas. Falta dar
+   de alta la app en Meta, registrar las plantillas `pedido_nuevo_alerta` y
+   `pedido_estado`, subir las variables `WHATSAPP_*` a Vercel y dar de alta el
+   webhook. **Pasos y comandos listos para copiar en `CONFIGURAR-WHATSAPP.txt`.**
+   Sin esto no se manda ni se recibe nada por WhatsApp; el resto funciona igual.
 
 0b. **Configurar el agente de impresión** (PC Windows de la caja):
    instalar Node 18+, compartir la impresora térmica 80mm como `POS80`,
