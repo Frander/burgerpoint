@@ -72,6 +72,53 @@ replicó lo esencial del back:
     comanda + ticket (ESC/POS con QR y corte) cuando el pedido entra a cocina.
     Ver `print-agent/README.md`.
 
+### Orden y edición del menú (29 jul 2026)
+Se puede reordenar arrastrando y editar sin borrar/recrear. **No necesita
+migración**: `sort_order` ya existía en las tres tablas.
+- **Categorías** (`/admin/menu`): asa ⠿ para arrastrar (mouse y táctil) y
+  cambiar el orden con que salen en el menú público; el nombre se edita y se
+  guarda con Enter, con el botón "Guardar" o al salir del campo.
+- **Opciones de cada platillo** (`/admin/menu/[id]`): se arrastran tanto los
+  grupos como las opciones dentro de cada grupo; se editan el nombre del grupo
+  y el nombre + precio extra de cada opción.
+- Componente reutilizable: `src/components/admin/SortableList.tsx` (sin
+  dependencias nuevas; también responde a ↑/↓ con el asa enfocada).
+- Acciones nuevas en `src/app/admin/menu/actions.ts`: `reorderCategories`,
+  `reorderGroups`, `reorderModifiers` y `updateModifier` (esta última faltaba
+  por completo: era la razón por la que había que borrar y recrear opciones).
+- `revalidateMenu()` ahora también revalida `/menu` (antes solo `/`, que es la
+  portada, no el menú).
+
+> Ojo: 46 de los 108 grupos y 94 de las 490 opciones tienen `sort_order = 0`,
+> así que dentro de esos productos el orden actual es arbitrario hasta que los
+> arrastres una vez; al soltar se renumeran 0..N.
+
+### Productos agotados: se muestran, no se ocultan (29 jul 2026)
+Antes, marcar un producto como agotado lo borraba del menú (parecía que ya no
+existía) y su página daba 404. Ahora sigue visible, apagado y sin poder pedirse.
+- Un producto está agotado si `available = false` **o** si lleva inventario y
+  `stock <= 0`. El predicado vive en `src/lib/product.ts` (`isSoldOut`) y
+  `getMenu`/`getProduct` lo exponen en el campo transitorio `Product.sold_out`.
+- `getMenu()` ya no filtra por `available`, y `getProduct()` tampoco: la ficha
+  del producto responde 200 con el aviso en vez de 404.
+- Menú (`ProductCard`): texto y foto en gris, "No disponible por ahora" y una
+  etiqueta "Agotado" en lugar del botón +.
+- Ficha (`ProductDetail`): aviso y el botón de agregar deshabilitado.
+- PDV (`PdvOrderEditor`): el producto aparece marcado "Agotado" y no se puede
+  tocar, para que la caja tampoco lo venda.
+- Red de seguridad en `priceLines` (`src/lib/order-insert.ts`): antes solo
+  rechazaba `available = false`; ahora rechaza cualquier agotado, incluido el
+  que se quedó sin stock. Los precios se siguen recalculando en el servidor.
+
+---
+
+### WhatsApp con la API oficial de Meta — Fase 1 (29 jul 2026)
+Alerta a un número cuando entra cualquier pedido (web, PDV o bot). Se decidió
+conexión **directa con Meta, sin BSP**: la Cloud API no cobra por acceso y un
+intermediario tipo Twilio casi duplicaría el costo por mensaje.
+**Ver `docs/whatsapp.md`** para el detalle, los costos por flujo, la plantilla a
+registrar y las fases siguientes (estados al cliente, webhook y bot).
+
 ---
 
 ## ⚠️ PENDIENTE DE TU LADO (importante)
@@ -84,6 +131,12 @@ Para que el sistema funcione 100% con tu Supabase, faltan estos pasos manuales:
    columnas nuevas de `orders` — **sin ella hasta el pedido web falla**, porque
    `createOrder` ya escribe esas columnas. La 0007 crea cajas y registros
    financieros (sin ella, la página Caja te lo indica y el resto funciona).
+
+0a. **WhatsApp (fase 1):** correr `0008_whatsapp.sql`, dar de alta la app en
+   Meta, registrar la plantilla `pedido_nuevo_alerta` y poner las variables
+   `WHATSAPP_*` en `.env.local` y en Vercel. Pasos detallados en
+   `docs/whatsapp.md`. Sin esto la alerta simplemente no se manda; los pedidos
+   funcionan igual.
 
 0b. **Configurar el agente de impresión** (PC Windows de la caja):
    instalar Node 18+, compartir la impresora térmica 80mm como `POS80`,

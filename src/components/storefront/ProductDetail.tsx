@@ -74,7 +74,14 @@ export default function ProductDetail({
 
   const unitPrice = product.price + extras;
   const lineTotal = unitPrice * quantity;
-  const canAdd = missing.length === 0;
+  const soldOut = Boolean(product.sold_out);
+  const canAdd = !soldOut && missing.length === 0;
+
+  function addButtonLabel(): string {
+    if (soldOut) return "Agotado — no disponible por ahora";
+    if (missing.length > 0) return `Falta elegir: ${missing.join(", ")}`;
+    return `Agregar ${formatMoney(lineTotal)}`;
+  }
 
   function handleAdd() {
     if (!canAdd) return;
@@ -126,6 +133,12 @@ export default function ProductDetail({
               </p>
             )}
             <p className="mt-3 text-lg font-bold">{formatMoney(product.price)}</p>
+
+            {soldOut && (
+              <p className="mt-3 rounded-lg bg-gray-100 px-4 py-3 text-sm font-medium text-gray-600">
+                Este producto está agotado y no se puede pedir por ahora.
+              </p>
+            )}
 
             {/* Grupos de opciones */}
             <div className="mt-6 space-y-6">
@@ -220,9 +233,7 @@ export default function ProductDetail({
               disabled={!canAdd}
               className="h-11 flex-1 rounded-lg bg-gray-900 px-6 text-sm font-semibold text-white transition-colors hover:bg-gray-700 disabled:opacity-50"
             >
-              {canAdd
-                ? `Agregar ${formatMoney(lineTotal)}`
-                : `Falta elegir: ${missing.join(", ")}`}
+              {addButtonLabel()}
             </button>
           </div>
         </div>

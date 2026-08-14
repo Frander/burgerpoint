@@ -34,6 +34,12 @@ export default function ProductCard({ product }: { product: Product }) {
     </button>
   );
 
+  const soldOutBadge = (
+    <span className="inline-flex h-9 items-center rounded-full bg-gray-100 px-3 text-xs font-semibold text-gray-500">
+      Agotado
+    </span>
+  );
+
   const stepper = inCart && (
     <div className="flex items-center gap-1 rounded-full bg-gray-900 text-white shadow-md">
       <button
@@ -58,18 +64,39 @@ export default function ProductCard({ product }: { product: Product }) {
     </div>
   );
 
+  const soldOut = Boolean(product.sold_out);
+  // Agotado: se sigue viendo y se puede abrir, pero no se puede agregar.
+  const action = soldOut ? soldOutBadge : (stepper ?? addButton);
+
   return (
     <div className="flex items-start gap-3 py-4">
       <Link href={`/menu/${product.id}`} className="group min-w-0 flex-1">
-        <h3 className="text-sm font-semibold leading-snug group-hover:underline">
+        <h3
+          className={`text-sm font-semibold leading-snug group-hover:underline ${
+            soldOut ? "text-gray-400" : ""
+          }`}
+        >
           {product.name}
         </h3>
+        {soldOut && (
+          <p className="mt-1 text-xs font-semibold text-gray-500">
+            No disponible por ahora
+          </p>
+        )}
         {product.description && (
-          <p className="mt-1 line-clamp-2 text-xs leading-relaxed text-gray-500">
+          <p
+            className={`mt-1 line-clamp-2 text-xs leading-relaxed ${
+              soldOut ? "text-gray-400" : "text-gray-500"
+            }`}
+          >
             {product.description}
           </p>
         )}
-        <p className="mt-2 text-sm font-bold">{formatMoney(product.price)}</p>
+        <p
+          className={`mt-2 text-sm font-bold ${soldOut ? "text-gray-400" : ""}`}
+        >
+          {formatMoney(product.price)}
+        </p>
       </Link>
 
       {product.image_url ? (
@@ -80,15 +107,15 @@ export default function ProductCard({ product }: { product: Product }) {
               alt={product.name}
               width={96}
               height={96}
-              className="h-24 w-24 rounded-lg object-cover"
+              className={`h-24 w-24 rounded-lg object-cover ${
+                soldOut ? "opacity-40 grayscale" : ""
+              }`}
             />
           </Link>
-          <div className="absolute -bottom-2 -right-2">
-            {stepper ?? addButton}
-          </div>
+          <div className="absolute -bottom-2 -right-2">{action}</div>
         </div>
       ) : (
-        <div className="shrink-0 self-center">{stepper ?? addButton}</div>
+        <div className="shrink-0 self-center">{action}</div>
       )}
     </div>
   );

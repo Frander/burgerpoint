@@ -213,16 +213,23 @@ export default function PdvOrderEditor({
               <button
                 key={p.id}
                 type="button"
-                disabled={loadingOptions === p.id}
+                disabled={loadingOptions === p.id || p.sold_out}
                 onClick={() => pickProduct(p)}
-                className="flex flex-col items-start rounded-xl border border-gray-200 p-3 text-left transition-colors hover:border-gray-900 disabled:opacity-50"
+                title={p.sold_out ? "Agotado: no se puede vender" : undefined}
+                className="flex flex-col items-start rounded-xl border border-gray-200 p-3 text-left transition-colors hover:border-gray-900 disabled:opacity-50 disabled:hover:border-gray-200"
               >
                 <span className="line-clamp-2 text-sm font-medium">
                   {loadingOptions === p.id ? "Cargando…" : p.name}
                 </span>
                 <span className="mt-1 text-xs text-gray-500">
-                  {formatMoney(p.price)}
-                  {p.has_modifiers ? " · opciones" : ""}
+                  {p.sold_out ? (
+                    <span className="font-semibold text-gray-600">Agotado</span>
+                  ) : (
+                    <>
+                      {formatMoney(p.price)}
+                      {p.has_modifiers ? " · opciones" : ""}
+                    </>
+                  )}
                 </span>
               </button>
             ))}

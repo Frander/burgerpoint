@@ -37,6 +37,11 @@ export interface Product {
   created_at: string;
   /** Transitorio: indica si el producto tiene grupos de opciones (storefront). */
   has_modifiers?: boolean;
+  /**
+   * Transitorio: el producto se muestra pero no se puede pedir, sea porque el
+   * staff lo marcó como no disponible o porque se quedó sin existencias.
+   */
+  sold_out?: boolean;
 }
 
 export interface Modifier {

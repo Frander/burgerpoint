@@ -1,6 +1,7 @@
 import { createClient } from "@/lib/supabase/server";
 import { isSupabaseConfigured } from "@/lib/supabase/config";
 import { SAMPLE_MENU, SAMPLE_MODIFIER_GROUPS } from "@/lib/sample-menu";
+import { isSoldOut } from "@/lib/product";
 import type {
   Category,
   MenuCategory,
@@ -10,7 +11,8 @@ import type {
 } from "@/lib/types";
 
 /**
- * Devuelve el menú agrupado por categoría (solo activas/disponibles).
+ * Devuelve el menú agrupado por las categorías activas. Los productos agotados
+ * se incluyen marcados con `sold_out` para que la vista los muestre apagados.
  * Si Supabase no está configurado, devuelve el menú de ejemplo para preview.
  */
 export async function getMenu(): Promise<MenuCategory[]> {
@@ -34,11 +36,7 @@ export async function getMenu(): Promise<MenuCategory[]> {
         .select("*")
         .eq("active", true)
         .order("sort_order"),
-      supabase
-        .from("products")
-        .select("*")
-        .eq("available", true)
-        .order("sort_order"),
+      supabase.from("products").select("*").order("sort_order"),
     ]);
 
   if (catErr || prodErr || !categories) {
@@ -46,15 +44,15 @@ export async function getMenu(): Promise<MenuCategory[]> {
   }
 
   // Qué productos tienen grupos de opciones (para enlazar al detalle).
-  const visible = (products ?? []) as Product[];
+  const all = (products ?? []) as Product[];
   const withModifiers = new Set<string>();
-  if (visible.length > 0) {
+  if (all.length > 0) {
     const { data: groups } = await supabase
       .from("modifier_groups")
       .select("product_id")
       .in(
         "product_id",
-        visible.map((p) => p.id),
+        all.map((p) => p.id),
       );
     for (const g of (groups ?? []) as { product_id: string }[]) {
       withModifiers.add(g.product_id);
@@ -62,12 +60,16 @@ export async function getMenu(): Promise<MenuCategory[]> {
   }
 
   const byCategory = new Map<string, Product[]>();
-  for (const product of visible) {
+  for (const product of all) {
     if (!product.category_id) continue;
-    // Oculta productos que rastrean inventario y están sin existencias.
-    if (product.track_stock && product.stock <= 0) continue;
+    // Los agotados siguen en el menú, marcados: que desaparezcan confunde al
+    // cliente (parece que ya no existe) y al staff en el PDV.
     const list = byCategory.get(product.category_id) ?? [];
-    list.push({ ...product, has_modifiers: withModifiers.has(product.id) });
+    list.push({
+      ...product,
+      has_modifiers: withModifiers.has(product.id),
+      sold_out: isSoldOut(product),
+    });
     byCategory.set(product.category_id, list);
   }
 
@@ -81,7 +83,8 @@ export async function getMenu(): Promise<MenuCategory[]> {
 
 /**
  * Devuelve un producto con sus grupos de opciones (para la página de detalle).
- * `null` si no existe o no está disponible. En modo preview usa el menú de
+ * `null` solo si no existe: los agotados se devuelven marcados con `sold_out`
+ * para poder mostrarlos sin permitir el pedido. En modo preview usa el menú de
  * ejemplo y sus grupos de opciones de muestra.
  */
 export async function getProduct(
@@ -101,7 +104,6 @@ export async function getProduct(
     .from("products")
     .select("*")
     .eq("id", id)
-    .eq("available", true)
     .maybeSingle();
 
   if (error || !product) return null;
@@ -121,5 +123,9 @@ export async function getProduct(
     }))
     .sort((a, b) => a.sort_order - b.sort_order);
 
-  return { ...(product as Product), modifier_groups };
+  return {
+    ...(product as Product),
+    sold_out: isSoldOut(product as Product),
+    modifier_groups,
+  };
 }

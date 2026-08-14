@@ -10,7 +10,26 @@ export interface ActionResult {
 
 function revalidateMenu() {
   revalidatePath("/admin/menu");
-  revalidatePath("/"); // storefront público
+  revalidatePath("/"); // portada
+  revalidatePath("/menu"); // storefront público
+}
+
+/**
+ * Reescribe `sort_order` según la posición de cada id en el arreglo.
+ * Las políticas RLS ya limitan la escritura al staff autenticado.
+ */
+async function applyOrder(
+  table: "categories" | "modifier_groups" | "modifiers",
+  ids: string[],
+): Promise<string | null> {
+  if (ids.length === 0) return null;
+  const supabase = await createClient();
+  const results = await Promise.all(
+    ids.map((id, index) =>
+      supabase.from(table).update({ sort_order: index }).eq("id", id),
+    ),
+  );
+  return results.find((result) => result.error)?.error?.message ?? null;
 }
 
 // ---------- Categorías ----------
@@ -33,9 +52,22 @@ export async function updateCategory(
   id: string,
   fields: { name?: string; active?: boolean; sort_order?: number },
 ): Promise<ActionResult> {
+  const patch: Record<string, unknown> = { ...fields };
+  if (typeof patch.name === "string") {
+    patch.name = patch.name.trim();
+    if (!patch.name) return { ok: false, error: "El nombre es obligatorio." };
+  }
   const supabase = await createClient();
-  const { error } = await supabase.from("categories").update(fields).eq("id", id);
+  const { error } = await supabase.from("categories").update(patch).eq("id", id);
   if (error) return { ok: false, error: error.message };
+  revalidateMenu();
+  return { ok: true };
+}
+
+/** Guarda el orden de las categorías (el que se ve en el menú público). */
+export async function reorderCategories(ids: string[]): Promise<ActionResult> {
+  const error = await applyOrder("categories", ids);
+  if (error) return { ok: false, error };
   revalidateMenu();
   return { ok: true };
 }
@@ -143,12 +175,32 @@ export async function updateGroup(
 ): Promise<ActionResult> {
   const supabase = await createClient();
   const patch: Record<string, unknown> = { ...fields };
-  if (typeof patch.name === "string") patch.name = patch.name.trim();
+  if (typeof patch.name === "string") {
+    patch.name = patch.name.trim();
+    if (!patch.name) return { ok: false, error: "Falta el nombre del grupo." };
+  }
+  if (fields.max_select !== undefined && fields.max_select < 1) {
+    return { ok: false, error: "El máximo debe ser ≥ 1." };
+  }
+  if (fields.min_select !== undefined && fields.min_select < 0) {
+    return { ok: false, error: "El mínimo no puede ser negativo." };
+  }
   const { error } = await supabase
     .from("modifier_groups")
     .update(patch)
     .eq("id", id);
   if (error) return { ok: false, error: error.message };
+  revalidateProduct(productId);
+  return { ok: true };
+}
+
+/** Guarda el orden de los grupos de opciones dentro de un producto. */
+export async function reorderGroups(
+  productId: string,
+  ids: string[],
+): Promise<ActionResult> {
+  const error = await applyOrder("modifier_groups", ids);
+  if (error) return { ok: false, error };
   revalidateProduct(productId);
   return { ok: true };
 }
@@ -186,6 +238,38 @@ export async function createModifier(
     sort_order: input.sort_order ?? 0,
   });
   if (error) return { ok: false, error: error.message };
+  revalidateProduct(productId);
+  return { ok: true };
+}
+
+/** Edita una opción existente (nombre y/o precio extra) sin recrearla. */
+export async function updateModifier(
+  id: string,
+  productId: string,
+  fields: Partial<ModifierInput>,
+): Promise<ActionResult> {
+  const patch: Record<string, unknown> = { ...fields };
+  if (typeof patch.name === "string") {
+    patch.name = patch.name.trim();
+    if (!patch.name) return { ok: false, error: "Falta el nombre de la opción." };
+  }
+  if (fields.extra_price !== undefined && !(fields.extra_price >= 0)) {
+    return { ok: false, error: "Precio inválido." };
+  }
+  const supabase = await createClient();
+  const { error } = await supabase.from("modifiers").update(patch).eq("id", id);
+  if (error) return { ok: false, error: error.message };
+  revalidateProduct(productId);
+  return { ok: true };
+}
+
+/** Guarda el orden de las opciones dentro de un grupo. */
+export async function reorderModifiers(
+  productId: string,
+  ids: string[],
+): Promise<ActionResult> {
+  const error = await applyOrder("modifiers", ids);
+  if (error) return { ok: false, error };
   revalidateProduct(productId);
   return { ok: true };
 }

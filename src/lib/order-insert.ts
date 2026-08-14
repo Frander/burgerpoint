@@ -2,6 +2,7 @@
 // Recalcula SIEMPRE los precios desde la base (no se confía en el cliente).
 
 import { randomUUID } from "node:crypto";
+import { after } from "next/server";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type {
   OrderOrigin,
@@ -9,6 +10,8 @@ import type {
   OrderType,
   Product,
 } from "@/lib/types";
+import { isSoldOut } from "@/lib/product";
+import { notifyNewOrder } from "@/lib/whatsapp/notify";
 
 export interface OrderModifierInput {
   modifier_id?: string;
@@ -75,16 +78,17 @@ export async function priceLines(
   const productIds = items.map((i) => i.productId);
   const { data: products, error: prodErr } = await supabase
     .from("products")
-    .select("id, name, price, available")
+    .select("id, name, price, available, track_stock, stock")
     .in("id", productIds);
 
   if (prodErr || !products) {
     return { lines: [], error: "No se pudo validar el menú." };
   }
 
+  // Los agotados se muestran en el menú, así que aquí es donde se rechazan.
   const productMap = new Map<string, Pick<Product, "id" | "name" | "price">>();
   for (const p of products as Product[]) {
-    if (p.available) productMap.set(p.id, p);
+    if (!isSoldOut(p)) productMap.set(p.id, p);
   }
 
   const modifierIds = Array.from(
@@ -226,6 +230,24 @@ export async function insertOrder(
 
   const linesRes = await insertLines(supabase, orderId, lines);
   if (!linesRes.ok) return { ok: false, error: linesRes.error };
+
+  // Alerta interna por WhatsApp. Va con `after` para no hacer esperar al
+  // cliente por la Graph API, y aislada para que un fallo de Meta no convierta
+  // un pedido bueno en un error. Aquí pasan los pedidos web, los del PDV y los
+  // que cree el bot, así que es el único punto donde hay que engancharla.
+  try {
+    after(async () => {
+      await notifyNewOrder({
+        orderId,
+        code,
+        type: input.type,
+        customerName: input.customer_name.trim(),
+        total,
+      });
+    });
+  } catch {
+    // `after` solo existe dentro de una petición; fuera de ella se omite.
+  }
 
   return { ok: true, orderId, code, total };
 }
