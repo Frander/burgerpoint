@@ -65,9 +65,25 @@ console.log(
 );
 
 // 2. ¿Están aprobadas las plantillas?
+// El id de la WABA se puede pedir de tres formas; no todas funcionan según cómo
+// se haya generado el token, así que se prueban en orden.
+async function findWabaId() {
+  if (process.env.WHATSAPP_WABA_ID) return process.env.WHATSAPP_WABA_ID;
+
+  const porNumero = await graph(`${phoneNumberId}?fields=whatsapp_business_account`);
+  if (porNumero.json?.whatsapp_business_account?.id) {
+    return porNumero.json.whatsapp_business_account.id;
+  }
+
+  // El token trae la WABA sobre la que se concedieron los permisos.
+  const debug = await graph(`debug_token?input_token=${token}`);
+  const scopes = debug.json?.data?.granular_scopes ?? [];
+  const gestion = scopes.find((s) => s.scope === "whatsapp_business_management");
+  return gestion?.target_ids?.[0] ?? null;
+}
+
 console.log("\nPlantillas de la cuenta:");
-const waba = await graph(`${phoneNumberId}?fields=whatsapp_business_account`);
-const wabaId = waba.json?.whatsapp_business_account?.id;
+const wabaId = await findWabaId();
 if (!wabaId) {
   console.log("  (no se pudo leer la WABA; revisa permisos del token)");
 } else {

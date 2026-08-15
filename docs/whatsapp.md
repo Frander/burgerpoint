@@ -72,18 +72,34 @@ Ojo con el número: el que conectes a la Cloud API **deja de servir en la app
 normal de WhatsApp**. El número que recibe las alertas debe ser otro, un
 WhatsApp normal (el celular del encargado).
 
-### 3. Registrar la plantilla de la alerta
-Categoría **Utility**, idioma **es_MX**, nombre `pedido_nuevo_alerta`. Cuerpo:
+### 3. Registrar las plantillas
+Ambas categoría **Utility**, idioma **es_MX**. Registradas por API el 14 ago
+2026; la aprobación tarda de minutos a un par de días.
+
+`pedido_nuevo_alerta`:
 
 ```
-Nuevo pedido {{1}}
-Tipo: {{2}}
-Cliente: {{3}}
-Total: {{4}}
+Entro un pedido nuevo en Burger Point.
+
+Folio del pedido: {{1}}
+Tipo de entrega: {{2}}
+Nombre del cliente: {{3}}
+Total a cobrar: {{4}}
+
+Entra al panel para mandarlo a cocina.
 ```
 
-Ejemplos para la revisión de Meta: `260729-0001`, `A domicilio`, `Juan Pérez`,
-`MXN 199.00`. La aprobación tarda de minutos a un par de días.
+`pedido_estado`:
+
+```
+Hola {{1}}, te escribimos de Burger Point para avisarte que tu pedido con
+folio {{2}} acaba de cambiar de estado y ahora se encuentra como: {{3}}.
+Gracias por tu preferencia.
+```
+
+> Meta rechaza las plantillas con muchas variables y poco texto (subcódigo
+> 2388293, "la proporción entre parámetros y palabras es superior al límite").
+> De ahí que los cuerpos sean largos: acortarlos las hace irregistrables.
 
 ### 4. Poner las variables de entorno
 En `.env.local` y en Vercel (ver `.env.example`):
