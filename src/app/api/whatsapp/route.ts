@@ -26,6 +26,11 @@ import { pruneSessions, touchContact } from "@/lib/whatsapp/session";
 // El webhook depende de la firma y del cuerpo de cada petición: nunca se cachea.
 export const dynamic = "force-dynamic";
 
+// El trabajo de verdad ocurre en `after()`, ya contestado el 200: la IA y los
+// envíos a Meta necesitan margen para terminar antes de que Vercel corte la
+// función.
+export const maxDuration = 60;
+
 export async function GET(request: NextRequest) {
   const params = request.nextUrl.searchParams;
   const mode = params.get("hub.mode");

@@ -10,6 +10,7 @@ import {
   listProducts,
   searchProducts,
 } from "@/lib/whatsapp/catalog";
+import { handleWithAI, isAiEnabled } from "@/lib/whatsapp/ai";
 import {
   clearSession,
   getSession,
@@ -76,6 +77,31 @@ function parseNumberList(text: string): number[] | null {
 }
 
 const PIE = "\nEscribe *0* para volver al menú.";
+
+/**
+ * Sí/no del cliente cuando viene conversando con la IA: contesta "si, confirmo"
+ * o "no, cambia algo", no un número. Se mira palabra por palabra, y una
+ * negación en la frase manda sobre cualquier afirmación ("no, si acaso mañana").
+ */
+const SI = ["si", "s", "claro", "va", "dale", "ok", "okay", "confirmo", "confirmar", "confirmado", "correcto", "adelante", "sale", "simon", "listo", "perfecto"];
+const NO = ["no", "espera", "cambiar", "cambia", "todavia", "aun", "mejor", "cancela"];
+
+function palabras(cmd: string): string[] {
+  return cmd
+    .replace(/[^\p{L}\p{N} ]+/gu, " ")
+    .split(/\s+/)
+    .filter(Boolean);
+}
+
+function esAfirmativo(cmd: string): boolean {
+  const ps = palabras(cmd);
+  if (ps.some((p) => NO.includes(p))) return false;
+  return ps.some((p) => SI.includes(p));
+}
+
+function esNegativo(cmd: string): boolean {
+  return palabras(cmd).some((p) => NO.includes(p));
+}
 
 // ---------- carrito ----------
 
@@ -315,7 +341,22 @@ export async function handleIncoming(
     return { mensajes: [cartResumen(data.cart!) + ACCIONES_CARRITO] };
   }
 
-  const esSaludo = ["hola", "buenas", "buenos dias", "buenas tardes", "buenas noches", "menu", "inicio", "0"].includes(cmd);
+  // "menu" siempre lleva al flujo numerado, aunque la IA esté encendida: es la
+  // salida de emergencia cuando el cliente (o el modelo) se atora.
+  const pideMenu = ["menu", "carta", "inicio", "0"].includes(cmd);
+  const esSaludo =
+    pideMenu ||
+    ["hola", "buenas", "buenos dias", "buenas tardes", "buenas noches"].includes(cmd);
+
+  // Con IA encendida, todo lo que no sea un paso numerado en curso lo atiende
+  // el modelo. Si falla, sigue de largo al menú numerado de siempre.
+  if (isAiEnabled() && !pideMenu && (sesion.state === "inicio" || sesion.state === "ia")) {
+    const respuesta = await handleWithAI(texto, data, perfilNombre);
+    if (respuesta) {
+      await saveSession(phone, respuesta.state, respuesta.data);
+      return { mensajes: respuesta.mensajes };
+    }
+  }
 
   if (esSaludo || sesion.state === "inicio") {
     const saludo =
@@ -605,12 +646,17 @@ export async function handleIncoming(
     case "confirmar": {
       const n = parseNumber(texto);
 
-      if (n === 2) {
+      // Con la IA el cliente contesta "sí" o "no", no un número. El pedido se
+      // crea aquí en los dos casos: el modelo nunca lo hace por su cuenta.
+      const afirma = n === 1 || esAfirmativo(cmd);
+      const niega = n === 2 || esNegativo(cmd);
+
+      if (niega) {
         await saveSession(phone, "carrito", data);
         return { mensajes: [cartResumen(data.cart ?? []) + ACCIONES_CARRITO] };
       }
 
-      if (n !== 1) {
+      if (!afirma) {
         return { mensajes: [`${resumenFinal(data)}`] };
       }
 

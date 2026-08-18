@@ -222,9 +222,46 @@ node --env-file=.env.local scripts/whatsapp-webhook-test.mjs "hola" --mala  # de
 
 ---
 
-## 🔜 Siguiente fase
+## ✅ Fase 5 — IA conversacional (DeepSeek) (hecha)
 
-- **Fase 5 — DeepSeek** encima de estas mismas herramientas (catálogo, carrito,
-  `priceLines()`), con confirmación explícita del cliente antes de crear el
-  pedido. El orden importaba: con la creación de pedidos ya probada, el LLM se
-  depura solo, sin arrastrar dos sistemas a la vez.
+`src/lib/whatsapp/ai.ts`. El cliente escribe como habla ("quiero 2 BP Match, de
+horchata y jamaica, para llevar") y el modelo lo resuelve llamando a las mismas
+herramientas del bot numerado.
+
+**El modelo conversa; no decide.** Tres candados, de fuera hacia dentro:
+
+1. **No existe una herramienta para crear pedidos.** Lo más que puede hacer la
+   IA es `pedir_confirmacion`, que deja la sesión en el estado `confirmar`. El
+   pedido lo crea el código cuando el cliente dice que sí (`esAfirmativo()`
+   acepta "sí", "confirmo", "va", "1"…, y cualquier negación en la frase manda
+   sobre la afirmación).
+2. **Cada herramienta valida contra la base.** `agregar_al_carrito` resuelve el
+   nombre contra `products`, rechaza los agotados y exige los grupos
+   obligatorios: si falta uno, devuelve `FALTA: …` con las opciones válidas y
+   el modelo tiene que preguntarle al cliente. No puede inventar productos,
+   precios ni combinaciones imposibles.
+3. **Los precios se recalculan igual.** El carrito de la sesión sirve para
+   mostrar; `insertOrder()` → `priceLines()` cobra lo que dice la base.
+   Verificado: una sesión manipulada a mano con `unitPrice: 1` para 5 BP
+   Signature generó un pedido de MXN 1,295, no de MXN 5.
+
+Detalles:
+
+- Modelo por defecto `deepseek-v4-flash` (`DEEPSEEK_MODEL` para cambiarlo).
+  Ojo: `deepseek-chat` ya no aparece en `/models`, ahora son los `v4`.
+- **Si DeepSeek falla, tarda más de 25 s o se queda sin vueltas, contesta el
+  menú numerado.** La IA es una comodidad, nunca el único camino. Sin
+  `DEEPSEEK_API_KEY` el bot funciona exactamente como antes.
+- `menu` siempre lleva al flujo numerado, aunque la IA esté encendida: es la
+  salida cuando el cliente (o el modelo) se atora.
+- Las respuestas pasan por `paraWhatsapp()`, que convierte el markdown que a
+  veces se le escapa al modelo (`**negritas**`) al formato de WhatsApp (`*`).
+- Se recuerdan los últimos 10 turnos en `wa_sessions.data.history`.
+
+---
+
+## 🔜 Siguientes pasos
+
+- Registrar el número real del negocio (hoy corre con el número de prueba de
+  Meta, que solo escribe a destinatarios verificados).
+- Token permanente en lugar del temporal de 24 h.

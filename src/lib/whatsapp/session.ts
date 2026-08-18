@@ -9,6 +9,7 @@ import type { OrderType } from "@/lib/types";
 
 export type BotState =
   | "inicio"
+  | "ia" // conversando con la IA (fase 5)
   | "categoria" // esperando número de categoría
   | "producto" // esperando número de producto
   | "opciones" // esperando opciones del grupo `groupIndex`
@@ -55,6 +56,8 @@ export interface SessionData {
   type?: OrderType;
   customerName?: string;
   address?: string;
+  /** Últimos turnos de la conversación con la IA (fase 5). */
+  history?: { role: "user" | "assistant"; content: string }[];
 }
 
 export interface BotSession {

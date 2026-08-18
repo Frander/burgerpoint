@@ -127,6 +127,10 @@ intermediario tipo Twilio casi duplicaría el costo por mensaje.
   opciones → cantidad → carrito → entrega → confirmación. Crea el pedido por
   `insertOrder()` (precios recalculados en el servidor) con origen `whatsapp`.
   Comandos: `menu`, `carrito`, `estado`, `cancelar`, `ayuda`, `baja`.
+- **Fase 5 — IA conversacional (DeepSeek):** el cliente escribe como habla y el
+  modelo usa las mismas herramientas. La IA **no puede crear pedidos** (no hay
+  herramienta para eso), cada acción se valida contra la base y los precios se
+  recalculan igual. Si DeepSeek falla, contesta el menú numerado.
 
 Migraciones `0008_whatsapp.sql` y `0009_wa_bot.sql` **ya aplicadas** en la base.
 Falta **conectar la app de Meta**: pasos y comandos en
