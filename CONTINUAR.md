@@ -3,8 +3,8 @@
 Documento para retomar el trabajo en otra sesión. Resume qué está hecho, qué
 falta de tu lado, y los próximos pasos sugeridos.
 
-_Última actualización: 12 jul 2026 (back-office estilo OlaClick: PDV, mesas,
-impresión térmica y cajas)_
+_Última actualización: 17 ago 2026 (WhatsApp completo: alertas, estados,
+webhook, bot de pedidos y capa de IA con DeepSeek)_
 
 ---
 
@@ -138,6 +138,42 @@ Falta **conectar la app de Meta**: pasos y comandos en
 
 Se puede probar sin Meta: `WHATSAPP_SIMULATOR=1` y
 `node scripts/whatsapp-bot-sim.mjs`.
+
+#### Estado de la conexión con Meta (17 ago 2026)
+
+Hecho:
+- App creada en Meta con el caso de uso de WhatsApp (modo **prueba**, número
+  `+1 555-009-7417`).
+- Variables cargadas en Vercel: `WHATSAPP_ACCESS_TOKEN`,
+  `WHATSAPP_PHONE_NUMBER_ID` (`126308610568986`), `WHATSAPP_APP_SECRET`,
+  `WHATSAPP_VERIFY_TOKEN` (`bp-webhook-e12fc207f072`), `DEEPSEEK_API_KEY` y
+  `DEEPSEEK_MODEL`.
+- Plantillas `pedido_nuevo_alerta` y `pedido_estado` registradas por API,
+  en revisión de Meta.
+- Verificación del webhook probada contra producción: devuelve el challenge.
+
+Falta:
+- **El token temporal ya caducó** ("The session is invalid because the user
+  logged out"). Los de la pantalla de pruebas duran 24 h: hay que generar uno
+  nuevo, o mejor el permanente (paso 3 de `CONFIGURAR-WHATSAPP.txt`), y
+  actualizarlo con `vercel env rm WHATSAPP_ACCESS_TOKEN production` + `add`.
+- Dar de alta el webhook en Meta con la URL
+  `https://burgerpoint-view.vercel.app/api/whatsapp`, el verify token de arriba
+  y **suscribir el campo `messages`**.
+- Cargar `WHATSAPP_ALERT_TO` (celular del encargado, lada sin `+`): quedó vacío,
+  así que la alerta de pedido nuevo no se manda.
+- Registrar en Meta los números que pueden recibir mensajes (en modo prueba solo
+  escribe a destinatarios verificados): el del encargado y el de pruebas.
+
+#### Agente de impresión (17 ago 2026)
+Ya no usa la cuenta admin: corre con el usuario de servicio
+`impresora@burgerpoint.local` (rol `cocina`, el mínimo que permite leer
+pedidos). `print-agent/config.json` de esta Mac ya apunta ahí. Guía para la PC
+de la caja en `print-agent/INSTALAR-EN-WINDOWS.txt` y prueba de impresión con
+`print-agent/probar-impresion.bat`.
+
+> Si vuelves a comprimir `print-agent` para llevarlo en USB, recuerda que el zip
+> incluye `config.json` con usuario y contraseña: está en `.gitignore` por eso.
 
 ---
 
