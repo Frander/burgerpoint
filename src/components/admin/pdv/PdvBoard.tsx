@@ -9,6 +9,7 @@ import {
   ORDER_STATUS_META,
   ORDER_TYPE_META,
   nextStatus,
+  orderStatusLabel,
 } from "@/lib/orders";
 import type {
   MenuCategory,
@@ -321,7 +322,7 @@ export default function PdvBoard({
                   <span
                     className={`rounded-full px-2.5 py-1 text-xs font-medium ${meta.className}`}
                   >
-                    {meta.label}
+                    {orderStatusLabel(order.status, order.type)}
                   </span>
                   <span
                     className={`rounded-full px-2.5 py-1 text-xs font-medium ${
@@ -435,7 +436,7 @@ export default function PdvBoard({
                       onClick={() => run(() => updateOrderStatus(order.id, next))}
                       className="rounded-full border border-black/15 px-3 py-1.5 text-xs font-medium disabled:opacity-50 dark:border-white/15"
                     >
-                      → {ORDER_STATUS_META[next].label}
+                      → {orderStatusLabel(next, order.type)}
                     </button>
                   )}
                   {order.payment_status !== "pagado" && (

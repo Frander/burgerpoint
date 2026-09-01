@@ -42,6 +42,17 @@ export const PAYMENT_METHOD_META: Record<PaymentMethod, { label: string; icon: s
   transferencia: { label: "Transferencia", icon: "🏦" },
 };
 
+/**
+ * Etiqueta del estado para mostrar en el panel, con matiz según el tipo de
+ * pedido: "listo" en domicilio es "En camino" (ya salió el repartidor), no
+ * "Listo" a secas (que suena a "listo para recoger"). Mismo criterio que el
+ * aviso de WhatsApp al cliente (`src/lib/whatsapp/notify.ts`).
+ */
+export function orderStatusLabel(status: OrderStatus, type: OrderType): string {
+  if (status === "listo" && type === "delivery") return "En camino";
+  return ORDER_STATUS_META[status].label;
+}
+
 /** Siguiente estado en el flujo normal, o null si ya es terminal. */
 export function nextStatus(status: OrderStatus): OrderStatus | null {
   switch (status) {

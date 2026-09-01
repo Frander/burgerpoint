@@ -193,3 +193,28 @@ export interface OrderWithItems extends Order {
 export interface OrderFull extends OrderWithItems {
   order_payments: OrderPayment[];
 }
+
+// ---------- WhatsApp (bitácora del bot, ver supabase/migrations/0008) ----------
+
+export interface WaContact {
+  phone: string;
+  name: string | null;
+  last_inbound_at: string | null;
+  opted_out: boolean;
+  created_at: string;
+}
+
+export interface WaMessage {
+  id: string;
+  direction: "in" | "out";
+  phone: string;
+  wamid: string | null;
+  kind: string | null;
+  template_name: string | null;
+  dedupe_tag: string | null;
+  body: string | null;
+  order_id: string | null;
+  status: string | null;
+  error: string | null;
+  created_at: string;
+}

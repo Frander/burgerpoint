@@ -4,7 +4,12 @@ import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { updateOrderStatus } from "@/app/admin/pedidos/actions";
 import { formatMoney } from "@/lib/format";
-import { ORDER_STATUS_META, ORDER_TYPE_META, nextStatus } from "@/lib/orders";
+import {
+  ORDER_STATUS_META,
+  ORDER_TYPE_META,
+  nextStatus,
+  orderStatusLabel,
+} from "@/lib/orders";
 import type { OrderStatus, OrderWithItems } from "@/lib/types";
 
 function formatTime(iso: string): string {
@@ -65,7 +70,7 @@ export default function OrderList({ orders }: { orders: OrderWithItems[] }) {
               <span
                 className={`rounded-full px-2.5 py-1 text-xs font-medium ${meta.className}`}
               >
-                {meta.label}
+                {orderStatusLabel(order.status, order.type)}
               </span>
             </div>
 
@@ -119,7 +124,7 @@ export default function OrderList({ orders }: { orders: OrderWithItems[] }) {
                     onClick={() => changeStatus(order.id, next)}
                     className="rounded-full bg-black px-3 py-1.5 text-xs font-medium text-white disabled:opacity-50 dark:bg-white dark:text-black"
                   >
-                    Marcar {ORDER_STATUS_META[next].label.toLowerCase()}
+                    Marcar {orderStatusLabel(next, order.type).toLowerCase()}
                   </button>
                 )}
                 {order.status !== "cancelado" &&

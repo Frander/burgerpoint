@@ -8,6 +8,7 @@ const NAV = [
   { href: "/admin/pdv", label: "PDV" },
   { href: "/admin/pedidos", label: "Pedidos" },
   { href: "/admin/cocina", label: "Cocina" },
+  { href: "/admin/whatsapp", label: "WhatsApp" },
   { href: "/admin/menu", label: "Menú" },
   { href: "/admin/mesas", label: "Mesas" },
   { href: "/admin/inventario", label: "Inventario" },
