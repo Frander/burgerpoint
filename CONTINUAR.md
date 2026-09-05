@@ -3,8 +3,8 @@
 Documento para retomar el trabajo en otra sesión. Resume qué está hecho, qué
 falta de tu lado, y los próximos pasos sugeridos.
 
-_Última actualización: 5 sep 2026 (filtro "En camino" y permisos por rol
-en el panel)_
+_Última actualización: 5 sep 2026 (rol repartidor con pantalla móvil; filtro
+"En camino" y permisos por rol en el panel)_
 
 ---
 
@@ -165,6 +165,44 @@ Falta:
 - Registrar en Meta los números que pueden recibir mensajes (en modo prueba solo
   escribe a destinatarios verificados): el del encargado y el de pruebas.
 
+### Repartidores: rol propio y pantalla móvil (5 sep 2026)
+
+Rol nuevo `repartidor`. **Solo ve los pedidos que trae él**, en una pantalla
+pensada para el celular (`/repartidor`, fuera del panel: sin menú lateral,
+una sola columna, botones grandes).
+
+**Flujo:** en el PDV, un pedido a domicilio tiene un selector "🛵 Repartidor".
+El botón **"→ En camino"** asigna y manda en camino en un solo paso — si no hay
+repartidor elegido, no deja avanzar ("Elige quién lleva el pedido…"). Sobre un
+pedido que ya va en camino, cambiar el selector lo reasigna al instante.
+
+**Lo que ve el repartidor** en cada tarjeta: la dirección en grande, botón
+**Cómo llegar** (Google Maps, con "Ticul, Yucatán" agregado para que no lo mande
+a otro estado), botón **Llamar**, el total con la etiqueta **COBRAR** o
+**✓ Pagado**, el detalle del pedido plegable, y un botón verde **✓ Entregado**
+con confirmación (el aviso dice cuánto tiene que cobrar). Abajo, "Entregadas
+hoy" para que vea su avance. Se actualiza solo (Realtime + recarga al volver a
+la pantalla y cada minuto, porque en la calle el celular se bloquea).
+
+**Aquí sí se apretó la RLS** (`0011_repartidor.sql`), porque un repartidor es el
+primer usuario que no debe ver todo:
+- `orders` / `order_items` / `order_item_modifiers`: si el rol es `repartidor`,
+  solo las filas con `courier_id = auth.uid()`.
+- Todas las demás tablas del staff (menú, inventario, caja, mesas, pagos,
+  WhatsApp) le quedan cerradas. Para admin, cajero y cocina **no cambia nada**.
+- `profiles`: ahora `cajero` también puede leer perfiles (necesita listar
+  repartidores para asignar); antes solo el admin.
+
+Archivos: `supabase/migrations/0011_repartidor.sql`, `src/app/repartidor/`
+(layout, page, actions), `src/components/repartidor/DeliveryBoard.tsx`,
+`src/lib/couriers.ts`, y el selector en `PdvBoard` + `assignCourier()` en
+`src/app/admin/pdv/actions.ts`.
+
+> **Ojo con Cocina:** el KDS también puede mover un pedido a "listo", y ahí no
+> se asigna repartidor (cocina ni siquiera puede leer la lista). Si pasa, el PDV
+> muestra "⚠ Va en camino sin repartidor: nadie lo ve en su celular" y se
+> arregla eligiéndolo en el selector.
+
 ### Estado "En camino" y permisos por rol (5 sep 2026)
 
 **1. "En camino" como filtro.** El estado real en la base sigue siendo `listo`
@@ -225,6 +263,18 @@ de la caja en `print-agent/INSTALAR-EN-WINDOWS.txt` y prueba de impresión con
 ## ⚠️ PENDIENTE DE TU LADO (importante)
 
 Para que el sistema funcione 100% con tu Supabase, faltan estos pasos manuales:
+
+0. **`0011_repartidor.sql` YA ESTÁ APLICADA** (5 sep 2026, con
+   `supabase db push`). Agregó el rol `repartidor`, las columnas
+   `orders.courier_id` / `assigned_at` y las políticas RLS que limitan al
+   repartidor a sus pedidos. Lo que falta es **dar de alta a los repartidores**:
+   Authentication → Users → Add user y luego ponerles el rol:
+   ```sql
+   update profiles set role = 'repartidor', full_name = 'Nombre del repartidor'
+   where id = (select id from auth.users where email = 'CORREO-DEL-REPARTIDOR');
+   ```
+   El repartidor entra por `/login` con ese correo y cae directo en
+   `/repartidor` (no ve nada del panel).
 
 0. **⚠️ OBLIGATORIO con el código nuevo: correr `0006_pdv.sql` y
    `0007_caja.sql`** en Supabase → SQL Editor (en ese orden, después de la
@@ -334,7 +384,6 @@ trigger descuenta. (Puedo hacerlo yo vía REST cuando avises.)
 - Sonido/notificación al entrar un pedido nuevo en cocina.
 
 ### 6. Otros (más adelante)
-- App / vista de repartidor.
 - Cupones y fidelización (como OlaClick).
 - Roles más finos en la **base** (RLS por rol; el panel ya está separado).
 - Reportes avanzados (rango de fechas, exportar CSV).

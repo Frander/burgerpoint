@@ -12,7 +12,7 @@ export type OrderType = "delivery" | "pickup" | "en_local" | "en_mesa";
 export type OrderOrigin = "web" | "pdv" | "whatsapp";
 export type PaymentMethod = "efectivo" | "tarjeta" | "transferencia";
 export type PaymentStatus = "no_pagado" | "pagado";
-export type StaffRole = "admin" | "cajero" | "cocina";
+export type StaffRole = "admin" | "cajero" | "cocina" | "repartidor";
 export type InventoryMoveType = "entrada" | "salida";
 
 export interface Category {
@@ -117,6 +117,15 @@ export interface Order {
   /** Nombre de quien tomó el pedido en el PDV. */
   served_by: string | null;
   closed_at: string | null;
+  /** Repartidor asignado (solo domicilio); ver 0011_repartidor.sql. */
+  courier_id: string | null;
+  assigned_at: string | null;
+}
+
+/** Repartidor disponible para asignar (lo que el PDV necesita mostrar). */
+export interface Courier {
+  id: string;
+  name: string;
 }
 
 export interface OrderPayment {

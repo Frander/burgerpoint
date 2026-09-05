@@ -3,7 +3,11 @@
 import { useCallback, useEffect, useState, useTransition } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { updateOrderStatus } from "@/app/admin/pedidos/actions";
-import { cancelOrder, finalizeOrder } from "@/app/admin/pdv/actions";
+import {
+  assignCourier,
+  cancelOrder,
+  finalizeOrder,
+} from "@/app/admin/pdv/actions";
 import { formatMoney } from "@/lib/format";
 import {
   ORDER_STATUS_META,
@@ -12,6 +16,7 @@ import {
   orderStatusLabel,
 } from "@/lib/orders";
 import type {
+  Courier,
   MenuCategory,
   OrderFull,
   OrderType,
@@ -49,10 +54,12 @@ function minutesAgo(iso: string): string {
 export default function PdvBoard({
   menu,
   salas,
+  couriers,
   initialOrders,
 }: {
   menu: MenuCategory[];
   salas: SalaWithMesas[];
+  couriers: Courier[];
   initialOrders: OrderFull[];
 }) {
   const [orders, setOrders] = useState<OrderFull[]>(initialOrders);
@@ -64,6 +71,8 @@ export default function PdvBoard({
   const [payingOrder, setPayingOrder] = useState<OrderFull | null>(null);
   const [appendOrder, setAppendOrder] = useState<OrderFull | null>(null);
   const [error, setError] = useState<string | null>(null);
+  // Repartidor elegido en la tarjeta antes de mandar el pedido en camino.
+  const [courierSel, setCourierSel] = useState<Record<string, string>>({});
   const [isPending, startTransition] = useTransition();
   const [tick, setTick] = useState(0); // re-render de tiempos
   void tick;
@@ -347,6 +356,43 @@ export default function PdvBoard({
                 {order.served_by ? ` · Atendió: ${order.served_by}` : ""}
               </p>
 
+              {order.type === "delivery" && (
+                <div className="mt-2 flex flex-wrap items-center gap-2 rounded-lg bg-black/[.03] px-3 py-2 text-xs dark:bg-white/[.05]">
+                  <span className="font-medium">🛵 Repartidor:</span>
+                  {couriers.length === 0 ? (
+                    <span className="text-black/50 dark:text-white/50">
+                      No hay usuarios con rol repartidor todavía.
+                    </span>
+                  ) : (
+                    <select
+                      value={courierSel[order.id] ?? order.courier_id ?? ""}
+                      disabled={isPending}
+                      onChange={(e) => {
+                        const value = e.target.value;
+                        setCourierSel((prev) => ({ ...prev, [order.id]: value }));
+                        // Si ya va en camino, reasignar surte efecto al momento.
+                        if (order.status === "listo") {
+                          run(() => assignCourier(order.id, value || null));
+                        }
+                      }}
+                      className="rounded-md border border-black/15 px-2 py-1 text-xs dark:border-white/15 dark:bg-transparent"
+                    >
+                      <option value="">Sin asignar</option>
+                      {couriers.map((c) => (
+                        <option key={c.id} value={c.id}>
+                          {c.name}
+                        </option>
+                      ))}
+                    </select>
+                  )}
+                  {order.status === "listo" && !order.courier_id && (
+                    <span className="font-medium text-orange-600">
+                      ⚠ Va en camino sin repartidor: nadie lo ve en su celular.
+                    </span>
+                  )}
+                </div>
+              )}
+
               <ul className="mt-2 space-y-0.5 text-sm">
                 {order.order_items.map((item) => (
                   <li key={item.id}>
@@ -433,7 +479,25 @@ export default function PdvBoard({
                     <button
                       type="button"
                       disabled={isPending}
-                      onClick={() => run(() => updateOrderStatus(order.id, next))}
+                      onClick={() => {
+                        // Mandar a domicilio "en camino" asigna repartidor en el
+                        // mismo paso: si no, el pedido no le sale a nadie.
+                        if (order.type === "delivery" && next === "listo") {
+                          const courier =
+                            courierSel[order.id] ?? order.courier_id ?? "";
+                          if (!courier) {
+                            setError(
+                              `Elige quién lleva el pedido ${order.code} antes de mandarlo en camino.`,
+                            );
+                            return;
+                          }
+                          run(() =>
+                            assignCourier(order.id, courier, { enviar: true }),
+                          );
+                          return;
+                        }
+                        run(() => updateOrderStatus(order.id, next));
+                      }}
                       className="rounded-full border border-black/15 px-3 py-1.5 text-xs font-medium disabled:opacity-50 dark:border-white/15"
                     >
                       → {orderStatusLabel(next, order.type)}

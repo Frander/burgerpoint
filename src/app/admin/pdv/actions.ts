@@ -13,6 +13,7 @@ import {
   type OrderLineInput,
 } from "@/lib/order-insert";
 import type {
+  OrderStatus,
   OrderType,
   PaymentMethod,
   ProductWithModifiers,
@@ -210,4 +211,63 @@ export async function getProductOptions(
 ): Promise<ProductWithModifiers | null> {
   await assertSection("pdv");
   return getProduct(productId);
+}
+
+/**
+ * Manda un pedido a domicilio en camino y le asigna repartidor en un solo paso.
+ *
+ * Va junto a propósito: un pedido "en camino" sin repartidor no le aparece a
+ * nadie en el celular, así que separarlo en dos botones invita a olvidarlo.
+ * `courierId` null solo se acepta para reasignar un pedido que ya iba en
+ * camino (por si el repartidor cambia a media entrega).
+ */
+export async function assignCourier(
+  orderId: string,
+  courierId: string | null,
+  options: { enviar?: boolean } = {},
+): Promise<PdvActionResult> {
+  await assertSection("pdv");
+  const supabase = await createClient();
+
+  const { data, error } = await supabase
+    .from("orders")
+    .select("id, type, status")
+    .eq("id", orderId)
+    .maybeSingle();
+  if (error) return { ok: false, error: error.message };
+  if (!data) return { ok: false, error: "El pedido ya no existe." };
+
+  const order = data as { type: OrderType; status: OrderStatus };
+  if (order.type !== "delivery") {
+    return { ok: false, error: "Solo los pedidos a domicilio llevan repartidor." };
+  }
+  if (order.status === "entregado" || order.status === "cancelado") {
+    return { ok: false, error: "Ese pedido ya está cerrado." };
+  }
+  if (options.enviar && !courierId) {
+    return { ok: false, error: "Elige quién lo lleva." };
+  }
+
+  const patch: Record<string, unknown> = {
+    courier_id: courierId,
+    assigned_at: courierId ? new Date().toISOString() : null,
+  };
+  if (options.enviar) patch.status = "listo";
+
+  const { error: upErr } = await supabase
+    .from("orders")
+    .update(patch)
+    .eq("id", orderId);
+  if (upErr) return { ok: false, error: upErr.message };
+
+  // El aviso al cliente ("va en camino") solo cuando de verdad cambió el estado.
+  if (options.enviar && order.status !== "listo") {
+    after(async () => {
+      await notifyOrderStatus(orderId, "listo");
+    });
+  }
+
+  revalidatePdv();
+  revalidatePath("/repartidor");
+  return { ok: true };
 }

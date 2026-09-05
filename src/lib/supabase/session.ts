@@ -4,8 +4,8 @@ import { isSupabaseConfigured } from "@/lib/supabase/config";
 
 /**
  * Refresca la sesión de Supabase y reescribe las cookies en cada request.
- * Se invoca desde `proxy.ts`. Además protege las rutas /admin: si no hay
- * usuario autenticado, redirige a /admin/login.
+ * Se invoca desde `proxy.ts`. Además protege las rutas privadas (/admin y
+ * /repartidor): si no hay usuario autenticado, redirige a /login.
  */
 export async function updateSession(request: NextRequest) {
   let supabaseResponse = NextResponse.next({ request });
@@ -43,7 +43,9 @@ export async function updateSession(request: NextRequest) {
 
   const { pathname } = request.nextUrl;
 
-  if (pathname.startsWith("/admin") && !user) {
+  const privada =
+    pathname.startsWith("/admin") || pathname.startsWith("/repartidor");
+  if (privada && !user) {
     const url = request.nextUrl.clone();
     url.pathname = "/login";
     return NextResponse.redirect(url);
