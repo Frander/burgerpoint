@@ -15,6 +15,7 @@ export type AdminSection =
   | "inventario"
   | "caja"
   | "reportes"
+  | "usuarios"
   | "entregas";
 
 export const SECTIONS: {
@@ -35,6 +36,7 @@ export const SECTIONS: {
   { id: "inventario", href: "/admin/inventario", label: "Inventario", desc: "Control de stock" },
   { id: "caja", href: "/admin/caja", label: "Caja", desc: "Apertura, arqueo y cierre" },
   { id: "reportes", href: "/admin/reportes", label: "Reportes", desc: "Ventas y productos top" },
+  { id: "usuarios", href: "/admin/usuarios", label: "Usuarios", desc: "Altas del staff y sus roles" },
   {
     id: "entregas",
     href: "/repartidor",
@@ -79,3 +81,13 @@ export function navFor(role: StaffRole) {
     (s) => !s.hidden && ROLE_SECTIONS[role]?.includes(s.id),
   );
 }
+
+/** Cómo se presenta cada rol en el panel (alta de usuarios). */
+export const ROLE_META: Record<StaffRole, { label: string; desc: string }> = {
+  admin: { label: "Administrador", desc: "Todo el panel, incluidos usuarios" },
+  cajero: { label: "Cajero", desc: "PDV, historial de pedidos y caja" },
+  cocina: { label: "Cocina", desc: "Solo la pantalla de cocina (KDS)" },
+  repartidor: { label: "Repartidor", desc: "Solo los pedidos que le asignen" },
+};
+
+export const ROLES: StaffRole[] = ["admin", "cajero", "cocina", "repartidor"];

@@ -3,8 +3,8 @@
 Documento para retomar el trabajo en otra sesión. Resume qué está hecho, qué
 falta de tu lado, y los próximos pasos sugeridos.
 
-_Última actualización: 5 sep 2026 (rol repartidor con pantalla móvil; filtro
-"En camino" y permisos por rol en el panel)_
+_Última actualización: 5 sep 2026 (pantalla de Usuarios; rol repartidor con
+pantalla móvil; filtro "En camino" y permisos por rol)_
 
 ---
 
@@ -164,6 +164,36 @@ Falta:
   así que la alerta de pedido nuevo no se manda.
 - Registrar en Meta los números que pueden recibir mensajes (en modo prueba solo
   escribe a destinatarios verificados): el del encargado y el de pruebas.
+
+### Pantalla de Usuarios y un hueco de seguridad cerrado (5 sep 2026)
+
+Hasta ahora dar de alta staff era manual: crear el usuario en Supabase →
+Authentication y correr un `update profiles set role = …` en el SQL Editor.
+Ya no: **`/admin/usuarios`**, solo para admin.
+
+- **Alta**: nombre, correo, rol y un botón **Generar** que arma una contraseña
+  legible para dictar por teléfono (`mvdf-gsjr-4974`). Se muestra una sola vez,
+  con el aviso de anotarla. Nadie tiene que inventar contraseñas.
+- **Por usuario**: cambiar rol (selector), renombrar, generar contraseña nueva
+  (los correos `@burgerpoint.local` no reciben correo, así que no hay
+  "olvidé mi contraseña") y borrar.
+- **Redes de seguridad**, tanto en la UI como en el servidor: no puedes cambiar
+  tu propio rol ni borrarte, y no se puede dejar al negocio sin ningún admin.
+- Crear y borrar cuentas toca `auth.users`, a lo que solo se llega con
+  `SUPABASE_SERVICE_ROLE_KEY`. Por eso las acciones viven en el servidor
+  (`src/app/admin/usuarios/actions.ts`) y `src/lib/staff.ts` es `server-only`.
+  Si falta esa variable, la página lo dice en vez de fallar.
+
+**El hueco (0012_usuarios.sql, ya aplicada).** La política de 0001 decía "cada
+quien edita su propio perfil", y eso incluía la columna `role`: **cualquier
+miembro del staff podía ascenderse a admin** llamando a la API de Supabase con
+la llave pública, sin pasar por el panel. Lo encontré probando quién podía crear
+usuarios. Ahora cada quien edita su nombre, pero el rol solo lo cambia un admin
+(comprobado: da 403).
+
+Archivos: `supabase/migrations/0012_usuarios.sql`, `src/app/admin/usuarios/`,
+`src/components/admin/UserManager.tsx`, `src/lib/staff.ts`, y `ROLE_META` /
+`ROLES` en `src/lib/roles.ts`.
 
 ### Usuarios de prueba (5 sep 2026)
 
