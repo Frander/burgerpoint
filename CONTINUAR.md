@@ -165,6 +165,25 @@ Falta:
 - Registrar en Meta los números que pueden recibir mensajes (en modo prueba solo
   escribe a destinatarios verificados): el del encargado y el de pruebas.
 
+### Usuarios de prueba (5 sep 2026)
+
+Quedaron dos cuentas permanentes en la base para probar sin tocar las reales.
+**Las contraseñas están en `CREDENCIALES-PRUEBA.txt`** (raíz, fuera de git:
+son cuentas con acceso real a los datos de producción, no van al repo).
+
+| Correo | Rol | Aterriza en | Ve |
+|--------|-----|-------------|-----|
+| `caja.test@burgerpoint.local` | cajero | `/admin/pdv` | PDV, Pedidos, Caja |
+| `repartidor.test@burgerpoint.local` | repartidor | `/repartidor` | Solo sus entregas |
+
+El dominio `@burgerpoint.local` no recibe correo: no sirve "olvidé mi
+contraseña". Si se pierde, se cambia en Supabase → Authentication.
+
+Al entrar, cada rol va **directo a su pantalla** (antes todos pasaban por
+`/admin` y de ahí rebotaban; el repartidor cargaba el panel entero en el
+celular para nada). Lo resuelven `homeFor()` en `login/page.tsx` y en
+`LoginForm`.
+
 ### Repartidores: rol propio y pantalla móvil (5 sep 2026)
 
 Rol nuevo `repartidor`. **Solo ve los pedidos que trae él**, en una pantalla

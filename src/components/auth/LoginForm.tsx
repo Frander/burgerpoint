@@ -3,6 +3,8 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
+import { homeFor } from "@/lib/roles";
+import type { StaffRole } from "@/lib/types";
 
 export default function LoginForm() {
   const router = useRouter();
@@ -17,7 +19,7 @@ export default function LoginForm() {
     setError(null);
 
     const supabase = createClient();
-    const { error } = await supabase.auth.signInWithPassword({
+    const { data, error } = await supabase.auth.signInWithPassword({
       email,
       password,
     });
@@ -28,7 +30,15 @@ export default function LoginForm() {
       return;
     }
 
-    router.replace("/admin");
+    // Cada rol entra directo a su pantalla: el repartidor trabaja desde el
+    // celular y no tiene por qué cargar el panel para que lo rebote.
+    const { data: perfil } = await supabase
+      .from("profiles")
+      .select("role")
+      .eq("id", data.user.id)
+      .maybeSingle();
+
+    router.replace(homeFor((perfil?.role as StaffRole) ?? "cajero"));
     router.refresh();
   }
 

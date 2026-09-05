@@ -52,3 +52,6 @@ supabase/.temp/
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# Credenciales de los usuarios de prueba (no subir a git)
+CREDENCIALES-PRUEBA.txt
