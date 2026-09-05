@@ -374,8 +374,12 @@ Ordenados por impacto/facilidad. Elegir desde aquí en la próxima sesión:
 - Siguiente: **dominio propio** (vercel.com → proyecto → Settings → Domains);
   al agregarlo, actualizar `NEXT_PUBLIC_SITE_URL` en Vercel y
   `business.siteUrl` en `print-agent/config.json`, y redeploy.
-- Nuevos deploys: `vercel deploy --prod` desde la carpeta del proyecto
-  (o conectar el repo a GitHub para deploys automáticos).
+- **Nuevos deploys: `git push` y listo** (confirmado el 5 sep 2026). El repo
+  está conectado a Vercel: al empujar a `main` el deploy sale solo y tarda
+  ~90 s. Hay dos remotos apuntando al mismo código, `origin`
+  (`Frander/burgerpoint`) y `view` (`Frander/burgerpoint-view`); el que
+  dispara el deploy es el del proyecto de Vercel, pero conviene empujar a los
+  dos para no dejarlos desalineados.
 
 ### 2. Fotos de productos (Supabase Storage) ✅ HECHO (29 may 2026)
 - Bucket público `product-images` vía `0004_storage.sql` (correr en SQL Editor).
