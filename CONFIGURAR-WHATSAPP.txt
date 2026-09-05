@@ -52,6 +52,11 @@ de verdad de Meta y no de alguien que descubrio la URL.
 -----------------------------------------------------------
 PASO 3 - TOKEN PERMANENTE (no el de 24 horas)
 -----------------------------------------------------------
+>>> ESTADO 5 sep 2026: el token que hay cargado esta MUERTO
+    (Meta responde 401 "The session is invalid because the
+    user logged out"). Es justo lo que pasa con el temporal
+    al cumplir 24 h. Hay que hacer este paso.
+
 El token que Meta muestra al principio EXPIRA EN 24 HORAS.
 Para uno permanente:
 
@@ -133,43 +138,40 @@ web. A quien pide por WhatsApp se le avisa gratis.)
 -----------------------------------------------------------
 PASO 6 - SUBIR LOS SECRETOS A VERCEL
 -----------------------------------------------------------
-Abre la Terminal en la carpeta del proyecto y pega estos
-comandos UNO POR UNO. Cambia lo que va entre comillas por
-tus valores reales de los pasos anteriores.
+(Actualizado 5 sep 2026: antes esto se hacia con el CLI de
+ vercel, que ya no esta instalado. Ahora se hace en la web.)
 
-   cd "/Volumes/FranderSSD/respaldo dic 2025/burgerpoint"
+1. Entra a https://vercel.com > proyecto burgerpoint-view
+   > Settings > Environment Variables.
 
-   echo "EAAxxxxxxxxPEGA-AQUI-TU-TOKEN" | vercel env add WHATSAPP_ACCESS_TOKEN production
+2. Agrega o edita cada una, con el entorno "Production"
+   marcado:
 
-   echo "123456789012345" | vercel env add WHATSAPP_PHONE_NUMBER_ID production
+   WHATSAPP_ACCESS_TOKEN    el token del PASO 3 (EAA...)
+   WHATSAPP_PHONE_NUMBER_ID 126308610568986
+   WHATSAPP_ALERT_TO        celular del encargado, con lada
+                            y SIN el signo +  (5219991234567)
+   WHATSAPP_VERIFY_TOKEN    el que inventaste en el PASO 4
+   WHATSAPP_APP_SECRET      el del PASO 2
 
-   echo "5219991234567" | vercel env add WHATSAPP_ALERT_TO production
+   OPCIONALES:
+   WHATSAPP_DELIVERY_FEE     30   (cobrar envio en el bot)
+   WHATSAPP_STATUS_TEMPLATES 1    (avisar tambien a quien
+                                  pidio por la web; ESTO
+                                  CUESTA ~USD 0.008 c/u)
 
-   echo "burgerpoint-webhook-2026-xY7k" | vercel env add WHATSAPP_VERIFY_TOKEN production
+3. IMPORTANTE: cambiar una variable NO vuelve a desplegar
+   solo. Ve a la pestana Deployments > el ultimo deploy >
+   menu "..." > Redeploy. Sin eso, el sitio sigue usando
+   el valor viejo.
 
-   echo "tu-app-secret-de-meta" | vercel env add WHATSAPP_APP_SECRET production
+4. Copia tambien el token en tu .env.local (en la carpeta
+   del proyecto) para que funcione el diagnostico del
+   PASO 8 desde tu Mac.
 
-Notas:
- * WHATSAPP_ALERT_TO es el celular que recibe las alertas,
-   con lada de pais y SIN el signo +.  Ej: 5219991234567
- * SUPABASE_SERVICE_ROLE_KEY ya esta cargada, no la toques.
+Para revisar que quedo bien, desde la Terminal:
 
-OPCIONALES (solo si los quieres):
-
-   # Cobrar envio en los pedidos del bot (30 pesos):
-   echo "30" | vercel env add WHATSAPP_DELIVERY_FEE production
-
-   # Avisar el estado tambien a quien pidio por la WEB.
-   # OJO: esos avisos SI cuestan (~USD 0.008 c/u).
-   echo "1" | vercel env add WHATSAPP_STATUS_TEMPLATES production
-
-Cuando termines, publica los cambios:
-
-   vercel deploy --prod
-
-Para revisar que quedaron cargadas:
-
-   vercel env ls
+   node --env-file=.env.local scripts/whatsapp-test.mjs
 
 
 -----------------------------------------------------------
