@@ -1,4 +1,5 @@
 import { createClient } from "@/lib/supabase/server";
+import { requireSection } from "@/lib/supabase/auth";
 import { isSupabaseConfigured } from "@/lib/supabase/config";
 import type { SalaWithMesas } from "@/lib/types";
 import MesaManager from "@/components/admin/MesaManager";
@@ -6,6 +7,7 @@ import MesaManager from "@/components/admin/MesaManager";
 export const dynamic = "force-dynamic";
 
 export default async function MesasPage() {
+  await requireSection("mesas");
   if (!isSupabaseConfigured()) {
     return (
       <div>

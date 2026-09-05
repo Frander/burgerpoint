@@ -66,3 +66,47 @@ export function nextStatus(status: OrderStatus): OrderStatus | null {
       return null;
   }
 }
+
+// ---------------------------------------------------------------------------
+// Filtro de estado con el matiz de domicilio
+// ---------------------------------------------------------------------------
+
+/**
+ * Valores del filtro de estado del historial. Son los estados reales más el
+ * pseudo-estado `en_camino`, que no existe en la base: es `listo` + tipo
+ * `delivery` (el repartidor ya salió). Por coherencia con la etiqueta que ve
+ * el staff, `listo` filtra solo lo que NO es domicilio.
+ */
+export type OrderStatusFilter = OrderStatus | "en_camino";
+
+export const ORDER_STATUS_FILTERS: {
+  value: OrderStatusFilter;
+  label: string;
+}[] = [
+  { value: "nuevo", label: "Nuevo" },
+  { value: "en_cocina", label: "En cocina" },
+  { value: "listo", label: "Listo (mostrador)" },
+  { value: "en_camino", label: "En camino (domicilio)" },
+  { value: "entregado", label: "Entregado" },
+  { value: "cancelado", label: "Cancelado" },
+];
+
+/** Valida el parámetro `?estado=` de la URL. */
+export function parseStatusFilter(raw: unknown): OrderStatusFilter | null {
+  return ORDER_STATUS_FILTERS.some((f) => f.value === raw)
+    ? (raw as OrderStatusFilter)
+    : null;
+}
+
+/**
+ * Traduce el filtro a condiciones de consulta: qué estado buscar y qué hacer
+ * con el tipo de pedido (`delivery` incluido, excluido o indiferente).
+ */
+export function statusFilterQuery(filter: OrderStatusFilter): {
+  status: OrderStatus;
+  delivery: "solo" | "excluir" | "indiferente";
+} {
+  if (filter === "en_camino") return { status: "listo", delivery: "solo" };
+  if (filter === "listo") return { status: "listo", delivery: "excluir" };
+  return { status: filter, delivery: "indiferente" };
+}

@@ -1,8 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { createClient } from "@/lib/supabase/server";
-import { requireProfile } from "@/lib/supabase/auth";
+import { requireProfile, sectionClient } from "@/lib/supabase/auth";
 import type { CashMovementType, PaymentMethod } from "@/lib/types";
 
 interface Result {
@@ -19,7 +18,7 @@ export async function openSession(openingAmount: number): Promise<Result> {
   const profile = await requireProfile();
   if (openingAmount < 0) return { ok: false, error: "Monto inválido." };
 
-  const supabase = await createClient();
+  const supabase = await sectionClient("caja");
   const { data: open } = await supabase
     .from("cash_sessions")
     .select("id")
@@ -48,7 +47,7 @@ export async function addMovement(input: {
   const profile = await requireProfile();
   if (!(input.amount > 0)) return { ok: false, error: "El monto debe ser mayor a 0." };
 
-  const supabase = await createClient();
+  const supabase = await sectionClient("caja");
   const { data: session } = await supabase
     .from("cash_sessions")
     .select("id")
@@ -79,7 +78,7 @@ export async function closeSession(
   notes?: string,
 ): Promise<Result> {
   const profile = await requireProfile();
-  const supabase = await createClient();
+  const supabase = await sectionClient("caja");
   const { error } = await supabase
     .from("cash_sessions")
     .update({

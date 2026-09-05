@@ -2,19 +2,7 @@ import Link from "next/link";
 import { getProfile } from "@/lib/supabase/auth";
 import { isSupabaseConfigured } from "@/lib/supabase/config";
 import { signOut } from "@/app/admin/actions";
-
-const NAV = [
-  { href: "/admin", label: "Inicio" },
-  { href: "/admin/pdv", label: "PDV" },
-  { href: "/admin/pedidos", label: "Pedidos" },
-  { href: "/admin/cocina", label: "Cocina" },
-  { href: "/admin/whatsapp", label: "WhatsApp" },
-  { href: "/admin/menu", label: "Menú" },
-  { href: "/admin/mesas", label: "Mesas" },
-  { href: "/admin/inventario", label: "Inventario" },
-  { href: "/admin/caja", label: "Caja" },
-  { href: "/admin/reportes", label: "Reportes" },
-];
+import { SECTIONS, homeFor, navFor } from "@/lib/roles";
 
 export default async function AdminLayout({
   children,
@@ -22,16 +10,19 @@ export default async function AdminLayout({
   children: React.ReactNode;
 }) {
   const profile = isSupabaseConfigured() ? await getProfile() : null;
+  // Sin Supabase (modo preview) se muestra todo; con sesión, solo lo del rol.
+  const nav = profile ? navFor(profile.role) : SECTIONS;
+  const home = profile ? homeFor(profile.role) : "/admin";
 
   return (
     <div className="flex min-h-full">
       <aside className="flex w-56 shrink-0 flex-col border-r border-black/10 bg-black/[.02] p-4 dark:border-white/10 dark:bg-white/[.02]">
-        <Link href="/admin" className="block text-lg font-bold">
+        <Link href={home} className="block text-lg font-bold">
           🍔 Burguer Point
         </Link>
         <p className="mb-6 text-xs text-black/50 dark:text-white/50">Panel</p>
         <nav className="flex flex-1 flex-col gap-1">
-          {NAV.map((item) => (
+          {nav.map((item) => (
             <Link
               key={item.href}
               href={item.href}

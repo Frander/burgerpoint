@@ -3,8 +3,8 @@
 Documento para retomar el trabajo en otra sesión. Resume qué está hecho, qué
 falta de tu lado, y los próximos pasos sugeridos.
 
-_Última actualización: 17 ago 2026 (WhatsApp completo: alertas, estados,
-webhook, bot de pedidos y capa de IA con DeepSeek)_
+_Última actualización: 5 sep 2026 (filtro "En camino" y permisos por rol
+en el panel)_
 
 ---
 
@@ -165,6 +165,51 @@ Falta:
 - Registrar en Meta los números que pueden recibir mensajes (en modo prueba solo
   escribe a destinatarios verificados): el del encargado y el de pruebas.
 
+### Estado "En camino" y permisos por rol (5 sep 2026)
+
+**1. "En camino" como filtro.** El estado real en la base sigue siendo `listo`
+(no se agregó ningún valor al enum): "En camino" es la lectura de `listo` cuando
+el pedido es a domicilio. Lo que faltaba era poder **filtrar** por él.
+- `src/lib/orders.ts`: `ORDER_STATUS_FILTERS` (opciones del select),
+  `parseStatusFilter()` (valida el `?estado=`) y `statusFilterQuery()` (traduce
+  el filtro a `status` + condición sobre `type`).
+- El select de `/admin/pedidos` ahora tiene **"En camino (domicilio)"**
+  (= `listo` + `type = delivery`) y **"Listo (mostrador)"**
+  (= `listo` + `type != delivery`), para que ninguna opción devuelva filas con
+  la otra etiqueta.
+- Mismo filtro en el **CSV** (`/admin/pedidos/export`), que además ya escribe
+  "En camino" en la columna Estado (antes decía "Listo" en domicilio). De paso,
+  el `?estado=` del CSV ahora se valida (antes iba crudo a la consulta).
+- **Cocina:** la columna se llama "Listos / En camino" y el botón de un pedido
+  a domicilio dice "Marcar en camino".
+- **WhatsApp:** la plantilla de estado (`pedido_estado`) ya mandaba
+  "Listo" en domicilio; ahora usa la misma etiqueta que el panel.
+- Ya estaba bien en el PDV y en `OrderList` (ambos usaban `orderStatusLabel`).
+
+**2. Cada rol ve solo lo suyo.** Antes, cualquier staff logueado veía las 10
+secciones del panel.
+- **`src/lib/roles.ts` es el único archivo que hay que tocar** para dar o quitar
+  accesos (`ROLE_SECTIONS`).
+  - `admin`: todo.
+  - `cajero`: PDV, Pedidos, Caja.
+  - `cocina`: solo Cocina (KDS).
+- El menú lateral se arma con `navFor(role)`; `/admin` solo la ve admin, a los
+  demás `requireSection` los manda a su pantalla (`homeFor`: cajero → `/admin/pdv`,
+  cocina → `/admin/cocina`).
+- Guardas nuevas en `src/lib/supabase/auth.ts`: `requireSection()` (páginas,
+  redirige), `assertSection()` (acciones, lanza) y `sectionClient()` (cliente de
+  Supabase ya validado). Están puestas en **las 10 páginas y en todas las
+  acciones de servidor** — esconder el menú no basta, la barrera son las
+  actions. `updateOrderStatus` acepta `pedidos | cocina | pdv` porque las tres
+  pantallas mueven estados.
+- El agente de impresión (usuario `impresora@burgerpoint.local`, rol `cocina`)
+  no se ve afectado: habla directo con la API de Supabase, no con el panel.
+
+> **Pendiente/decisión:** esto cierra el panel, **no la base**. Las políticas RLS
+> siguen siendo `my_role() is not null` (cualquier staff puede escribir cualquier
+> tabla si usa la API con su token). Si quieres que el candado sea real hace
+> falta una migración `0011_rls_roles.sql` que distinga los roles en Postgres.
+
 #### Agente de impresión (17 ago 2026)
 Ya no usa la cuenta admin: corre con el usuario de servicio
 `impresora@burgerpoint.local` (rol `cocina`, el mínimo que permite leer
@@ -291,7 +336,7 @@ trigger descuenta. (Puedo hacerlo yo vía REST cuando avises.)
 ### 6. Otros (más adelante)
 - App / vista de repartidor.
 - Cupones y fidelización (como OlaClick).
-- Roles más finos (cajero vs cocina ven distinto).
+- Roles más finos en la **base** (RLS por rol; el panel ya está separado).
 - Reportes avanzados (rango de fechas, exportar CSV).
 
 ---

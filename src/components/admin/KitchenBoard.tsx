@@ -3,13 +3,13 @@
 import { useCallback, useEffect, useState, useTransition } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { updateOrderStatus } from "@/app/admin/pedidos/actions";
-import { ORDER_STATUS_META, ORDER_TYPE_META, nextStatus } from "@/lib/orders";
+import { ORDER_TYPE_META, nextStatus, orderStatusLabel } from "@/lib/orders";
 import type { OrderStatus, OrderWithItems } from "@/lib/types";
 
 const COLUMNS: { status: OrderStatus; title: string }[] = [
   { status: "nuevo", title: "Nuevos" },
   { status: "en_cocina", title: "En cocina" },
-  { status: "listo", title: "Listos" },
+  { status: "listo", title: "Listos / En camino" },
 ];
 
 const ACTIVE: OrderStatus[] = ["nuevo", "en_cocina", "listo"];
@@ -167,7 +167,10 @@ export default function KitchenBoard({
                         >
                           {order.status === "listo"
                             ? "Marcar entregado"
-                            : `Marcar ${ORDER_STATUS_META[next].label.toLowerCase()}`}
+                            : `Marcar ${orderStatusLabel(
+                                next,
+                                order.type,
+                              ).toLowerCase()}`}
                         </button>
                       )}
                     </div>

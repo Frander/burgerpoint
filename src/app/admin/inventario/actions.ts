@@ -1,7 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { createClient } from "@/lib/supabase/server";
+import { sectionClient } from "@/lib/supabase/auth";
 import type { InventoryMoveType } from "@/lib/types";
 
 export interface ActionResult {
@@ -14,7 +14,7 @@ export async function setTrackStock(
   productId: string,
   track: boolean,
 ): Promise<ActionResult> {
-  const supabase = await createClient();
+  const supabase = await sectionClient("inventario");
   const { error } = await supabase
     .from("products")
     .update({ track_stock: track })
@@ -36,7 +36,7 @@ export async function addInventoryMove(
   reason?: string,
 ): Promise<ActionResult> {
   if (!(quantity > 0)) return { ok: false, error: "Cantidad inválida." };
-  const supabase = await createClient();
+  const supabase = await sectionClient("inventario");
   const {
     data: { user },
   } = await supabase.auth.getUser();

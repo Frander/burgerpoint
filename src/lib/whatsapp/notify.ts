@@ -4,7 +4,7 @@ import { WHATSAPP, WA_TEMPLATES, isWhatsappConfigured } from "@/lib/whatsapp/con
 import { sendTemplate, sendText, hasOpenWindow } from "@/lib/whatsapp/client";
 import { normalizePhone } from "@/lib/whatsapp/phone";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { ORDER_STATUS_META } from "@/lib/orders";
+import { orderStatusLabel } from "@/lib/orders";
 import type { OrderStatus, OrderType } from "@/lib/types";
 
 const TYPE_LABEL: Record<OrderType, string> = {
@@ -68,7 +68,7 @@ function textoEstado(status: OrderStatus, type: OrderType, code: string): string
     case "cancelado":
       return `❌ Tu pedido *${code}* fue cancelado. Si crees que es un error, escríbenos.`;
     default:
-      return `Tu pedido *${code}*: ${ORDER_STATUS_META[status]?.label ?? status}.`;
+      return `Tu pedido *${code}*: ${orderStatusLabel(status, type)}.`;
   }
 }
 
@@ -154,7 +154,7 @@ export async function notifyOrderStatus(
       variables: [
         order.customer_name,
         order.code,
-        ORDER_STATUS_META[status]?.label ?? status,
+        orderStatusLabel(status, order.type),
       ],
     });
   } catch (err) {

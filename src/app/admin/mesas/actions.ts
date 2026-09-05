@@ -1,8 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { createClient } from "@/lib/supabase/server";
-import { requireProfile } from "@/lib/supabase/auth";
+import { requireProfile, sectionClient } from "@/lib/supabase/auth";
 
 interface Result {
   ok: boolean;
@@ -20,7 +19,7 @@ export async function createSala(
 ): Promise<Result> {
   await requireProfile();
   if (!name.trim()) return { ok: false, error: "Falta el nombre de la sala." };
-  const supabase = await createClient();
+  const supabase = await sectionClient("mesas");
   const { error } = await supabase
     .from("salas")
     .insert({ name: name.trim(), sort_order: sortOrder });
@@ -34,7 +33,7 @@ export async function updateSala(
   fields: { name?: string; active?: boolean; sort_order?: number },
 ): Promise<Result> {
   await requireProfile();
-  const supabase = await createClient();
+  const supabase = await sectionClient("mesas");
   const { error } = await supabase.from("salas").update(fields).eq("id", id);
   if (error) return { ok: false, error: error.message };
   revalidate();
@@ -43,7 +42,7 @@ export async function updateSala(
 
 export async function deleteSala(id: string): Promise<Result> {
   await requireProfile();
-  const supabase = await createClient();
+  const supabase = await sectionClient("mesas");
   const { error } = await supabase.from("salas").delete().eq("id", id);
   if (error) return { ok: false, error: error.message };
   revalidate();
@@ -57,7 +56,7 @@ export async function createMesa(
 ): Promise<Result> {
   await requireProfile();
   if (!name.trim()) return { ok: false, error: "Falta el nombre de la mesa." };
-  const supabase = await createClient();
+  const supabase = await sectionClient("mesas");
   const { error } = await supabase
     .from("mesas")
     .insert({ sala_id: salaId, name: name.trim(), sort_order: sortOrder });
@@ -71,7 +70,7 @@ export async function updateMesa(
   fields: { name?: string; active?: boolean; sort_order?: number },
 ): Promise<Result> {
   await requireProfile();
-  const supabase = await createClient();
+  const supabase = await sectionClient("mesas");
   const { error } = await supabase.from("mesas").update(fields).eq("id", id);
   if (error) return { ok: false, error: error.message };
   revalidate();
@@ -80,7 +79,7 @@ export async function updateMesa(
 
 export async function deleteMesa(id: string): Promise<Result> {
   await requireProfile();
-  const supabase = await createClient();
+  const supabase = await sectionClient("mesas");
   const { error } = await supabase.from("mesas").delete().eq("id", id);
   if (error) return { ok: false, error: error.message };
   revalidate();

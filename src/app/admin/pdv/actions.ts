@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { after } from "next/server";
 import { createClient } from "@/lib/supabase/server";
-import { requireProfile } from "@/lib/supabase/auth";
+import { assertSection } from "@/lib/supabase/auth";
 import { notifyOrderStatus } from "@/lib/whatsapp/notify";
 import { getProduct } from "@/lib/menu";
 import {
@@ -62,7 +62,7 @@ function defaultCustomerName(type: OrderType): string {
 export async function createPdvOrder(
   input: PdvOrderInput,
 ): Promise<PdvActionResult> {
-  const profile = await requireProfile();
+  const profile = await assertSection("pdv");
 
   if (!input.items?.length) {
     return { ok: false, error: "El pedido está vacío." };
@@ -98,7 +98,7 @@ export async function addItemsToOrder(
   orderId: string,
   items: OrderLineInput[],
 ): Promise<PdvActionResult> {
-  await requireProfile();
+  await assertSection("pdv");
   if (!items?.length) return { ok: false, error: "No hay productos que agregar." };
 
   const supabase = await createClient();
@@ -140,7 +140,7 @@ export async function registerPayment(
   amount: number,
   received?: number,
 ): Promise<PdvActionResult> {
-  const profile = await requireProfile();
+  const profile = await assertSection("pdv");
   if (!(amount > 0)) return { ok: false, error: "El monto debe ser mayor a 0." };
 
   const supabase = await createClient();
@@ -174,7 +174,7 @@ export async function registerPayment(
 
 /** Finaliza (entrega) un pedido y sella la hora de cierre. */
 export async function finalizeOrder(orderId: string): Promise<PdvActionResult> {
-  await requireProfile();
+  await assertSection("pdv");
   const supabase = await createClient();
   const { error } = await supabase
     .from("orders")
@@ -190,7 +190,7 @@ export async function finalizeOrder(orderId: string): Promise<PdvActionResult> {
 
 /** Cancela un pedido abierto. */
 export async function cancelOrder(orderId: string): Promise<PdvActionResult> {
-  await requireProfile();
+  await assertSection("pdv");
   const supabase = await createClient();
   const { error } = await supabase
     .from("orders")
@@ -208,6 +208,6 @@ export async function cancelOrder(orderId: string): Promise<PdvActionResult> {
 export async function getProductOptions(
   productId: string,
 ): Promise<ProductWithModifiers | null> {
-  await requireProfile();
+  await assertSection("pdv");
   return getProduct(productId);
 }

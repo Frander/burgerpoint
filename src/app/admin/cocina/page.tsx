@@ -1,4 +1,5 @@
 import { createClient } from "@/lib/supabase/server";
+import { requireSection } from "@/lib/supabase/auth";
 import { isSupabaseConfigured } from "@/lib/supabase/config";
 import type { OrderWithItems } from "@/lib/types";
 import KitchenBoard from "@/components/admin/KitchenBoard";
@@ -8,6 +9,7 @@ export const dynamic = "force-dynamic";
 const ACTIVE = ["nuevo", "en_cocina", "listo"];
 
 export default async function CocinaPage() {
+  await requireSection("cocina");
   if (!isSupabaseConfigured()) {
     return (
       <div>

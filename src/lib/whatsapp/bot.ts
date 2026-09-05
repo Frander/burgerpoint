@@ -20,7 +20,7 @@ import {
   type CartLine,
   type SessionData,
 } from "@/lib/whatsapp/session";
-import { ORDER_STATUS_META, ORDER_TYPE_META } from "@/lib/orders";
+import { ORDER_TYPE_META, orderStatusLabel } from "@/lib/orders";
 import type { ModifierGroupWithOptions, OrderStatus, OrderType } from "@/lib/types";
 
 /**
@@ -227,7 +227,7 @@ async function siguientePaso(
 // ---------- seguimiento ----------
 
 function textoEstado(status: OrderStatus, type: OrderType, code: string): string {
-  const etiqueta = ORDER_STATUS_META[status]?.label ?? status;
+  const etiqueta = orderStatusLabel(status, type);
 
   switch (status) {
     case "nuevo":

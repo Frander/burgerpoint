@@ -1,7 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { getProfile } from "@/lib/supabase/auth";
-import { ORDER_STATUS_META, ORDER_TYPE_META } from "@/lib/orders";
+import { canAccess } from "@/lib/roles";
+import {
+  ORDER_TYPE_META,
+  orderStatusLabel,
+  parseStatusFilter,
+  statusFilterQuery,
+} from "@/lib/orders";
 import type { OrderFull } from "@/lib/types";
 
 const TZ_OFFSET = "-06:00"; // America/Merida
@@ -17,6 +23,9 @@ export async function GET(request: NextRequest) {
   if (!profile) {
     return NextResponse.json({ error: "No autorizado" }, { status: 401 });
   }
+  if (!canAccess(profile.role, ["pedidos"])) {
+    return NextResponse.json({ error: "Sin permiso" }, { status: 403 });
+  }
 
   const params = request.nextUrl.searchParams;
   const desde = /^\d{4}-\d{2}-\d{2}$/.test(params.get("desde") ?? "")
@@ -25,7 +34,7 @@ export async function GET(request: NextRequest) {
   const hasta = /^\d{4}-\d{2}-\d{2}$/.test(params.get("hasta") ?? "")
     ? params.get("hasta")!
     : desde;
-  const estado = params.get("estado");
+  const estado = parseStatusFilter(params.get("estado"));
   const origen = params.get("origen");
 
   const supabase = await createClient();
@@ -36,7 +45,12 @@ export async function GET(request: NextRequest) {
     .lte("created_at", `${hasta}T23:59:59${TZ_OFFSET}`)
     .order("created_at", { ascending: false })
     .limit(2000);
-  if (estado) query = query.eq("status", estado);
+  if (estado) {
+    const f = statusFilterQuery(estado);
+    query = query.eq("status", f.status);
+    if (f.delivery === "solo") query = query.eq("type", "delivery");
+    if (f.delivery === "excluir") query = query.neq("type", "delivery");
+  }
   if (origen && (origen === "web" || origen === "pdv" || origen === "whatsapp"))
     query = query.eq("origin", origen);
 
@@ -85,7 +99,7 @@ export async function GET(request: NextRequest) {
         csvCell(fecha),
         csvCell(ORDER_TYPE_META[order.type]?.label ?? order.type),
         csvCell(order.origin.toUpperCase()),
-        csvCell(ORDER_STATUS_META[order.status]?.label ?? order.status),
+        csvCell(orderStatusLabel(order.status, order.type)),
         csvCell(order.payment_status === "pagado" ? "Pagado" : "No pagado"),
         csvCell(metodos),
         csvCell(order.customer_name),

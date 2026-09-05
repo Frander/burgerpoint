@@ -1,4 +1,5 @@
 import { createClient } from "@/lib/supabase/server";
+import { requireSection } from "@/lib/supabase/auth";
 import { isSupabaseConfigured } from "@/lib/supabase/config";
 import type { Category, Product } from "@/lib/types";
 import CategoryManager from "@/components/admin/CategoryManager";
@@ -7,6 +8,7 @@ import ProductManager from "@/components/admin/ProductManager";
 export const dynamic = "force-dynamic";
 
 export default async function MenuAdminPage() {
+  await requireSection("menu");
   if (!isSupabaseConfigured()) {
     return (
       <div>

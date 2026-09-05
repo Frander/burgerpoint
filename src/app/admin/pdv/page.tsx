@@ -1,4 +1,5 @@
 import { createClient } from "@/lib/supabase/server";
+import { requireSection } from "@/lib/supabase/auth";
 import { isSupabaseConfigured } from "@/lib/supabase/config";
 import { getMenu } from "@/lib/menu";
 import type { OrderFull, SalaWithMesas } from "@/lib/types";
@@ -7,6 +8,7 @@ import PdvBoard from "@/components/admin/pdv/PdvBoard";
 export const dynamic = "force-dynamic";
 
 export default async function PdvPage() {
+  await requireSection("pdv");
   if (!isSupabaseConfigured()) {
     return (
       <div>

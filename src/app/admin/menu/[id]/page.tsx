@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
+import { requireSection } from "@/lib/supabase/auth";
 import { isSupabaseConfigured } from "@/lib/supabase/config";
 import type { ModifierGroupWithOptions, Product } from "@/lib/types";
 import ModifierManager from "@/components/admin/ModifierManager";
@@ -12,6 +13,7 @@ export default async function ProductOptionsPage({
 }: {
   params: Promise<{ id: string }>;
 }) {
+  await requireSection("menu");
   const { id } = await params;
 
   if (!isSupabaseConfigured()) {

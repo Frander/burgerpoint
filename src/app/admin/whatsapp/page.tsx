@@ -1,4 +1,5 @@
 import { createClient } from "@/lib/supabase/server";
+import { requireSection } from "@/lib/supabase/auth";
 import { isSupabaseConfigured } from "@/lib/supabase/config";
 import type { WaContact, WaMessage } from "@/lib/types";
 import WhatsappInbox from "@/components/admin/whatsapp/WhatsappInbox";
@@ -10,6 +11,7 @@ export default async function WhatsappPage({
 }: {
   searchParams: Promise<{ phone?: string }>;
 }) {
+  await requireSection("whatsapp");
   if (!isSupabaseConfigured()) {
     return (
       <div>

@@ -1,4 +1,5 @@
 import { createClient } from "@/lib/supabase/server";
+import { requireSection } from "@/lib/supabase/auth";
 import { isSupabaseConfigured } from "@/lib/supabase/config";
 import { formatMoney } from "@/lib/format";
 
@@ -43,6 +44,7 @@ const TYPE_LABELS: Record<string, string> = {
 };
 
 export default async function ReportesPage() {
+  await requireSection("reportes");
   if (!isSupabaseConfigured()) {
     return (
       <div>

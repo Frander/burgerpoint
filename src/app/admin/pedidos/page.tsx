@@ -1,8 +1,13 @@
 import { createClient } from "@/lib/supabase/server";
+import { requireSection } from "@/lib/supabase/auth";
 import { isSupabaseConfigured } from "@/lib/supabase/config";
 import { formatMoney } from "@/lib/format";
-import { ORDER_STATUS_META } from "@/lib/orders";
-import type { OrderStatus, OrderWithItems } from "@/lib/types";
+import {
+  ORDER_STATUS_FILTERS,
+  parseStatusFilter,
+  statusFilterQuery,
+} from "@/lib/orders";
+import type { OrderWithItems } from "@/lib/types";
 import OrderList from "@/components/admin/OrderList";
 
 export const dynamic = "force-dynamic";
@@ -19,14 +24,6 @@ function todayKey(): string {
   }).format(new Date());
 }
 
-const STATUSES: OrderStatus[] = [
-  "nuevo",
-  "en_cocina",
-  "listo",
-  "entregado",
-  "cancelado",
-];
-
 export default async function PedidosPage({
   searchParams,
 }: {
@@ -37,6 +34,7 @@ export default async function PedidosPage({
     origen?: string;
   }>;
 }) {
+  await requireSection("pedidos");
   if (!isSupabaseConfigured()) {
     return (
       <div>
@@ -52,9 +50,7 @@ export default async function PedidosPage({
   const hoy = todayKey();
   const desde = /^\d{4}-\d{2}-\d{2}$/.test(sp.desde ?? "") ? sp.desde! : hoy;
   const hasta = /^\d{4}-\d{2}-\d{2}$/.test(sp.hasta ?? "") ? sp.hasta! : hoy;
-  const estado = STATUSES.includes(sp.estado as OrderStatus)
-    ? (sp.estado as OrderStatus)
-    : null;
+  const estado = parseStatusFilter(sp.estado);
   const origen =
     sp.origen === "web" || sp.origen === "pdv" || sp.origen === "whatsapp"
       ? sp.origen
@@ -68,7 +64,12 @@ export default async function PedidosPage({
     .lte("created_at", `${hasta}T23:59:59${TZ_OFFSET}`)
     .order("created_at", { ascending: false })
     .limit(500);
-  if (estado) query = query.eq("status", estado);
+  if (estado) {
+    const f = statusFilterQuery(estado);
+    query = query.eq("status", f.status);
+    if (f.delivery === "solo") query = query.eq("type", "delivery");
+    if (f.delivery === "excluir") query = query.neq("type", "delivery");
+  }
   if (origen) query = query.eq("origin", origen);
 
   const { data } = await query;
@@ -116,9 +117,9 @@ export default async function PedidosPage({
             className="rounded-md border border-black/15 px-2 py-1.5 dark:border-white/15 dark:bg-transparent"
           >
             <option value="">Todos</option>
-            {STATUSES.map((s) => (
-              <option key={s} value={s}>
-                {ORDER_STATUS_META[s].label}
+            {ORDER_STATUS_FILTERS.map((f) => (
+              <option key={f.value} value={f.value}>
+                {f.label}
               </option>
             ))}
           </select>

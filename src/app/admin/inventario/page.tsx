@@ -1,4 +1,5 @@
 import { createClient } from "@/lib/supabase/server";
+import { requireSection } from "@/lib/supabase/auth";
 import { isSupabaseConfigured } from "@/lib/supabase/config";
 import type { Product } from "@/lib/types";
 import InventoryManager from "@/components/admin/InventoryManager";
@@ -6,6 +7,7 @@ import InventoryManager from "@/components/admin/InventoryManager";
 export const dynamic = "force-dynamic";
 
 export default async function InventarioPage() {
+  await requireSection("inventario");
   if (!isSupabaseConfigured()) {
     return (
       <div>

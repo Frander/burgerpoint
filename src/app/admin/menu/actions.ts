@@ -1,7 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { createClient } from "@/lib/supabase/server";
+import { sectionClient } from "@/lib/supabase/auth";
 
 export interface ActionResult {
   ok: boolean;
@@ -23,7 +23,7 @@ async function applyOrder(
   ids: string[],
 ): Promise<string | null> {
   if (ids.length === 0) return null;
-  const supabase = await createClient();
+  const supabase = await sectionClient("menu");
   const results = await Promise.all(
     ids.map((id, index) =>
       supabase.from(table).update({ sort_order: index }).eq("id", id),
@@ -39,7 +39,7 @@ export async function createCategory(
   sortOrder = 0,
 ): Promise<ActionResult> {
   if (!name.trim()) return { ok: false, error: "El nombre es obligatorio." };
-  const supabase = await createClient();
+  const supabase = await sectionClient("menu");
   const { error } = await supabase
     .from("categories")
     .insert({ name: name.trim(), sort_order: sortOrder });
@@ -57,7 +57,7 @@ export async function updateCategory(
     patch.name = patch.name.trim();
     if (!patch.name) return { ok: false, error: "El nombre es obligatorio." };
   }
-  const supabase = await createClient();
+  const supabase = await sectionClient("menu");
   const { error } = await supabase.from("categories").update(patch).eq("id", id);
   if (error) return { ok: false, error: error.message };
   revalidateMenu();
@@ -73,7 +73,7 @@ export async function reorderCategories(ids: string[]): Promise<ActionResult> {
 }
 
 export async function deleteCategory(id: string): Promise<ActionResult> {
-  const supabase = await createClient();
+  const supabase = await sectionClient("menu");
   const { error } = await supabase.from("categories").delete().eq("id", id);
   if (error) return { ok: false, error: error.message };
   revalidateMenu();
@@ -96,7 +96,7 @@ export async function createProduct(
 ): Promise<ActionResult> {
   if (!input.name.trim()) return { ok: false, error: "El nombre es obligatorio." };
   if (!(input.price >= 0)) return { ok: false, error: "Precio inválido." };
-  const supabase = await createClient();
+  const supabase = await sectionClient("menu");
   const { error } = await supabase.from("products").insert({
     name: input.name.trim(),
     description: input.description?.trim() || null,
@@ -114,7 +114,7 @@ export async function updateProduct(
   id: string,
   fields: Partial<ProductInput>,
 ): Promise<ActionResult> {
-  const supabase = await createClient();
+  const supabase = await sectionClient("menu");
   const patch: Record<string, unknown> = { ...fields };
   if (typeof patch.name === "string") patch.name = patch.name.trim();
   const { error } = await supabase.from("products").update(patch).eq("id", id);
@@ -124,7 +124,7 @@ export async function updateProduct(
 }
 
 export async function deleteProduct(id: string): Promise<ActionResult> {
-  const supabase = await createClient();
+  const supabase = await sectionClient("menu");
   const { error } = await supabase.from("products").delete().eq("id", id);
   if (error) return { ok: false, error: error.message };
   revalidateMenu();
@@ -155,7 +155,7 @@ export async function createGroup(
   if (input.min_select < 0 || input.min_select > input.max_select) {
     return { ok: false, error: "El mínimo no puede superar al máximo." };
   }
-  const supabase = await createClient();
+  const supabase = await sectionClient("menu");
   const { error } = await supabase.from("modifier_groups").insert({
     product_id: productId,
     name: input.name.trim(),
@@ -173,7 +173,7 @@ export async function updateGroup(
   productId: string,
   fields: Partial<GroupInput>,
 ): Promise<ActionResult> {
-  const supabase = await createClient();
+  const supabase = await sectionClient("menu");
   const patch: Record<string, unknown> = { ...fields };
   if (typeof patch.name === "string") {
     patch.name = patch.name.trim();
@@ -209,7 +209,7 @@ export async function deleteGroup(
   id: string,
   productId: string,
 ): Promise<ActionResult> {
-  const supabase = await createClient();
+  const supabase = await sectionClient("menu");
   const { error } = await supabase.from("modifier_groups").delete().eq("id", id);
   if (error) return { ok: false, error: error.message };
   revalidateProduct(productId);
@@ -229,7 +229,7 @@ export async function createModifier(
 ): Promise<ActionResult> {
   if (!input.name.trim()) return { ok: false, error: "Falta el nombre de la opción." };
   if (!(input.extra_price >= 0)) return { ok: false, error: "Precio inválido." };
-  const supabase = await createClient();
+  const supabase = await sectionClient("menu");
   const { error } = await supabase.from("modifiers").insert({
     group_id: groupId,
     product_id: productId,
@@ -256,7 +256,7 @@ export async function updateModifier(
   if (fields.extra_price !== undefined && !(fields.extra_price >= 0)) {
     return { ok: false, error: "Precio inválido." };
   }
-  const supabase = await createClient();
+  const supabase = await sectionClient("menu");
   const { error } = await supabase.from("modifiers").update(patch).eq("id", id);
   if (error) return { ok: false, error: error.message };
   revalidateProduct(productId);
@@ -278,7 +278,7 @@ export async function deleteModifier(
   id: string,
   productId: string,
 ): Promise<ActionResult> {
-  const supabase = await createClient();
+  const supabase = await sectionClient("menu");
   const { error } = await supabase.from("modifiers").delete().eq("id", id);
   if (error) return { ok: false, error: error.message };
   revalidateProduct(productId);

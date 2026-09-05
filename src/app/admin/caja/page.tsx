@@ -1,4 +1,5 @@
 import { createClient } from "@/lib/supabase/server";
+import { requireSection } from "@/lib/supabase/auth";
 import { isSupabaseConfigured } from "@/lib/supabase/config";
 import type { CashMovement, CashSession, OrderPayment } from "@/lib/types";
 import CashManager from "@/components/admin/CashManager";
@@ -6,6 +7,7 @@ import CashManager from "@/components/admin/CashManager";
 export const dynamic = "force-dynamic";
 
 export default async function CajaPage() {
+  await requireSection("caja");
   if (!isSupabaseConfigured()) {
     return (
       <div>

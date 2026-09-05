@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { after } from "next/server";
-import { createClient } from "@/lib/supabase/server";
+import { sectionClient } from "@/lib/supabase/auth";
 import { notifyOrderStatus } from "@/lib/whatsapp/notify";
 import type { OrderStatus } from "@/lib/types";
 
@@ -10,7 +10,8 @@ export async function updateOrderStatus(
   id: string,
   status: OrderStatus,
 ): Promise<{ ok: boolean; error?: string }> {
-  const supabase = await createClient();
+  // Mover el estado es trabajo de las tres pantallas: historial, KDS y PDV.
+  const supabase = await sectionClient("pedidos", "cocina", "pdv");
   const { error } = await supabase
     .from("orders")
     .update({ status })
