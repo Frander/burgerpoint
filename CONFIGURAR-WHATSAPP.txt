@@ -57,22 +57,45 @@ PASO 3 - TOKEN PERMANENTE (no el de 24 horas)
     user logged out"). Es justo lo que pasa con el temporal
     al cumplir 24 h. Hay que hacer este paso.
 
-El token que Meta muestra al principio EXPIRA EN 24 HORAS.
-Para uno permanente:
+OJO: el token permanente NO se saca desde la consola de
+WhatsApp (WhatsApp > Configuracion de la API). Esa pantalla
+solo da tokens temporales: segun Meta, "genera un token de
+usuario nuevo cada vez que la visitas". El permanente es de
+USUARIO DEL SISTEMA y vive en Configuracion del negocio, que
+es otro sitio con el mismo login.
 
-1. https://business.facebook.com > Configuracion del negocio.
-2. Usuarios > Usuarios del sistema > Agregar.
+   Consola de WhatsApp ..... token de 24 h
+   business.facebook.com ... token permanente
+
+Pasos (atajo: entra directo a la URL del punto 1):
+
+1. https://business.facebook.com/settings/system-users
+2. Boton "Agregar".
    Nombre: "burgerpoint-api"   Rol: Administrador.
 3. Boton "Agregar activos" > selecciona tu app de WhatsApp
    y tu cuenta de WhatsApp Business, con control total.
+   ESTE PASO ES EL QUE MAS SE SALTA LA GENTE: sin los
+   activos asignados el token se genera pero Meta responde
+   403 al usar el numero.
 4. Boton "Generar nuevo token":
    - App: la tuya
    - Caducidad: NUNCA
-   - Permisos: whatsapp_business_messaging
+   - Permisos (son TRES):
+               whatsapp_business_messaging
                whatsapp_business_management
+               business_management
 5. Copialo COMPLETO (empieza con EAA...). Solo se muestra
    una vez.
    -> lo vas a usar como WHATSAPP_ACCESS_TOKEN
+
+Si no ves "Usuarios del sistema", casi siempre es que
+entraste con una cuenta que no es administradora del
+portafolio de negocio, o que la app no esta asociada a uno.
+
+PARCHE TEMPORAL (60 dias, NO permanente): pega el token de
+24 h en https://developers.facebook.com/tools/debug/accesstoken/
+y pulsa "Extend Access Token". Sirve para hoy, pero en 60
+dias el bot deja de contestar sin avisar. No lo dejes asi.
 
 
 -----------------------------------------------------------
