@@ -3,8 +3,8 @@
 Documento para retomar el trabajo en otra sesión. Resume qué está hecho, qué
 falta de tu lado, y los próximos pasos sugeridos.
 
-_Última actualización: 5 sep 2026 (pantalla de Usuarios; rol repartidor con
-pantalla móvil; filtro "En camino" y permisos por rol)_
+_Última actualización: 6 sep 2026 (WhatsApp: token permanente y Phone Number
+ID corregido; pantalla de Usuarios; rol repartidor; permisos por rol)_
 
 ---
 
@@ -139,31 +139,62 @@ Falta **conectar la app de Meta**: pasos y comandos en
 Se puede probar sin Meta: `WHATSAPP_SIMULATOR=1` y
 `node scripts/whatsapp-bot-sim.mjs`.
 
-#### Estado de la conexión con Meta (17 ago 2026)
+#### Estado de la conexión con Meta (6 sep 2026)
+
+**Token permanente resuelto.** Ya está en Vercel un token de **usuario del
+sistema** (`burguerpointchat`, app *Burguer Point Chat* `1517950983347735`) que
+**no caduca**, con `whatsapp_business_messaging` y
+`whatsapp_business_management`. Se acabaron los tokens de 24 h.
+
+**El bloqueo real no era el token, era el Phone Number ID.** El que estaba
+guardado (`126308610568986`, número `+1 555-009-7417`) **ya no existe**: la
+Graph API responde `100 / subcode 33 "object does not exist"` con cualquier
+token. El número de prueba vigente es:
+
+| | |
+|---|---|
+| Número | `+1 555-197-8395` |
+| **Phone Number ID** | **`1250269604836573`** |
+| Calidad | GREEN · plataforma CLOUD_API |
+
+Ya corregido en Vercel y en `.env.local`. Verificado con el token permanente:
+`GET` del número devuelve 200 y el envío devuelve **`131030 recipient phone
+number not in allowed list`**, que es exactamente lo que debe contestar en modo
+prueba: la autenticación funciona de punta a punta y solo falta autorizar
+destinatarios.
+
+> Cómo se perdió medio día: el ID viejo daba "missing permissions", que parece
+> un problema de permisos del token. No lo es. Si vuelve a salir ese error,
+> **primero compara el Phone Number ID contra la consola de Meta**
+> (WhatsApp → Configuración de la API), antes de tocar activos o regenerar
+> tokens. El error de permisos y el de "ID que ya no existe" son el mismo.
 
 Hecho:
-- App creada en Meta con el caso de uso de WhatsApp (modo **prueba**, número
-  `+1 555-009-7417`).
-- Variables cargadas en Vercel: `WHATSAPP_ACCESS_TOKEN`,
-  `WHATSAPP_PHONE_NUMBER_ID` (`126308610568986`), `WHATSAPP_APP_SECRET`,
-  `WHATSAPP_VERIFY_TOKEN` (`bp-webhook-e12fc207f072`), `DEEPSEEK_API_KEY` y
+- App en Meta en modo **prueba**, con el número de arriba.
+- Variables en Vercel: `WHATSAPP_ACCESS_TOKEN` (permanente),
+  `WHATSAPP_PHONE_NUMBER_ID` (`1250269604836573`), `WHATSAPP_APP_SECRET`,
+  `WHATSAPP_VERIFY_TOKEN` (`bp-webhook-e12fc207f072`), `DEEPSEEK_API_KEY`,
   `DEEPSEEK_MODEL`.
-- Plantillas `pedido_nuevo_alerta` y `pedido_estado` registradas por API,
-  en revisión de Meta.
-- Verificación del webhook probada contra producción: devuelve el challenge.
+- Webhook verificado contra producción: devuelve el challenge.
+- Plantillas `pedido_nuevo_alerta` y `pedido_estado` registradas por API.
 
-Falta:
-- **El token temporal ya caducó** ("The session is invalid because the user
-  logged out"). Los de la pantalla de pruebas duran 24 h: hay que generar uno
-  nuevo, o mejor el permanente (paso 3 de `CONFIGURAR-WHATSAPP.txt`), y
-  actualizarlo con `vercel env rm WHATSAPP_ACCESS_TOKEN production` + `add`.
-- Dar de alta el webhook en Meta con la URL
-  `https://burgerpoint-view.vercel.app/api/whatsapp`, el verify token de arriba
-  y **suscribir el campo `messages`**.
-- Cargar `WHATSAPP_ALERT_TO` (celular del encargado, lada sin `+`): quedó vacío,
-  así que la alerta de pedido nuevo no se manda.
-- Registrar en Meta los números que pueden recibir mensajes (en modo prueba solo
-  escribe a destinatarios verificados): el del encargado y el de pruebas.
+Falta (por orden de estorbo):
+1. **`WHATSAPP_ALERT_TO` sigue vacía** → no se manda la alerta de pedido nuevo
+   al encargado. Es el celular con lada y sin `+` (`5219991234567`). Se carga en
+   vercel.com → Settings → Environment Variables, y luego **Redeploy** (cambiar
+   una variable no redespliega sola).
+2. **Registrar destinatarios en Meta.** En modo prueba solo se puede escribir a
+   números verificados: el del encargado y el de pruebas. Sin esto todo
+   responde `131030`.
+3. Confirmar que el webhook tiene suscrito el campo **`messages`**; sin eso no
+   entra ningún mensaje del cliente.
+4. Cuando se quiera atender clientes reales: conectar el número propio del
+   negocio (deja de funcionar en la app normal de WhatsApp) y salir de modo
+   prueba.
+
+Diagnóstico rápido en cualquier momento:
+
+    node --env-file=.env.local scripts/whatsapp-test.mjs
 
 ### Pantalla de Usuarios y un hueco de seguridad cerrado (5 sep 2026)
 
@@ -207,7 +238,12 @@ son cuentas con acceso real a los datos de producción, no van al repo).
 | `repartidor.test@burgerpoint.local` | repartidor | `/repartidor` | Solo sus entregas |
 
 El dominio `@burgerpoint.local` no recibe correo: no sirve "olvidé mi
-contraseña". Si se pierde, se cambia en Supabase → Authentication.
+contraseña". Si se pierde, se cambia desde `/admin/usuarios` o en Supabase →
+Authentication.
+
+**Admins actuales:** `frander.mejia15@gmail.com` y `raulbule52@gmail.com`
+(este último era cajero y se subió a admin el 5 sep 2026). El agente de
+impresión corre con `impresora@burgerpoint.local`, rol `cocina`.
 
 Al entrar, cada rol va **directo a su pantalla** (antes todos pasaban por
 `/admin` y de ahí rebotaban; el repartidor cargaba el panel entero en el
