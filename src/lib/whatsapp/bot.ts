@@ -343,7 +343,10 @@ export async function handleIncoming(
 
   // "menu" siempre lleva al flujo numerado, aunque la IA esté encendida: es la
   // salida de emergencia cuando el cliente (o el modelo) se atora.
-  const pideMenu = ["menu", "carta", "inicio", "0"].includes(cmd);
+  // En "opciones" el 0 significa "ninguna" (pantallaGrupo), no volver al menú.
+  const pideMenu =
+    ["menu", "carta", "inicio"].includes(cmd) ||
+    (cmd === "0" && sesion.state !== "opciones");
   const esSaludo =
     pideMenu ||
     ["hola", "buenas", "buenos dias", "buenas tardes", "buenas noches"].includes(cmd);
