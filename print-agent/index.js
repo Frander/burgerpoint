@@ -152,7 +152,9 @@ async function mesaNameOf(order) {
   return data?.name ?? null;
 }
 
-async function printOrder(order, { force = false } = {}) {
+// `only`: imprime solo ese tipo (reimpresión desde el panel). Lanza el error
+// en vez de tragárselo cuando se pide `throwOnError`, para poder avisar.
+async function printOrder(order, { force = false, only = null, throwOnError = false } = {}) {
   if (!force && state.printed[order.id]) return;
   order._mesaName = await mesaNameOf(order);
   const opts = {
@@ -161,15 +163,16 @@ async function printOrder(order, { force = false } = {}) {
     columns: config.columns,
   };
   try {
-    if (config.autoPrint?.cocina !== false || force) {
+    if (only ? only === "cocina" : config.autoPrint?.cocina !== false || force) {
       await output(kitchenTicket(order, opts), order, "cocina");
     }
-    if (config.autoPrint?.cliente !== false || force) {
+    if (only ? only === "cliente" : config.autoPrint?.cliente !== false || force) {
       await output(clientTicket(order, opts), order, "cliente");
     }
     markPrinted(order.id);
   } catch (err) {
     console.error(`❌ Error imprimiendo ${order.code}:`, err.message);
+    if (throwOnError) throw err;
   }
 }
 
@@ -272,6 +275,35 @@ async function main() {
     )
     .subscribe((status) => {
       console.log(`Realtime: ${status}`);
+    });
+
+  // Reimpresión desde el panel (botón 🖨 del PDV o de Pedidos) en cualquier
+  // equipo: llega por broadcast y se contesta "impreso" para que el panel
+  // no abra el diálogo del navegador.
+  const canalImpresion = supabase.channel("impresion");
+  canalImpresion
+    .on("broadcast", { event: "reimprimir" }, async ({ payload }) => {
+      const { reqId, orderId, kind } = payload ?? {};
+      if (!reqId || !orderId || !["cliente", "cocina"].includes(kind)) return;
+      let ok = false;
+      try {
+        const order = await fetchOrder(orderId);
+        if (order) {
+          console.log(`🔁 Reimpresión pedida: ${order.code} (${kind})`);
+          await printOrder(order, { force: true, only: kind, throwOnError: true });
+          ok = true;
+        }
+      } catch (err) {
+        console.error("Error en reimpresión:", err.message);
+      }
+      canalImpresion.send({
+        type: "broadcast",
+        event: "impreso",
+        payload: { reqId, ok },
+      });
+    })
+    .subscribe((status) => {
+      console.log(`Reimpresión: ${status}`);
     });
 
   // Barrido cada 90s por si Realtime perdió algún evento.

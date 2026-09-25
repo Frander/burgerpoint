@@ -11,6 +11,7 @@ import {
   orderStatusLabel,
 } from "@/lib/orders";
 import type { OrderStatus, OrderWithItems } from "@/lib/types";
+import PrintButton from "@/components/admin/PrintButton";
 
 function formatTime(iso: string): string {
   try {
@@ -103,20 +104,12 @@ export default function OrderList({ orders }: { orders: OrderWithItems[] }) {
             <div className="mt-3 flex items-center justify-between border-t border-black/10 pt-3 dark:border-white/10">
               <span className="font-semibold">{formatMoney(order.total)}</span>
               <div className="flex gap-2">
-                <button
-                  type="button"
+                <PrintButton
+                  orderId={order.id}
+                  kind="cliente"
+                  label="🖨"
                   title="Imprimir ticket"
-                  onClick={() =>
-                    window.open(
-                      `/print/ticket/${order.id}?tipo=cliente`,
-                      "_blank",
-                      "width=420,height=720",
-                    )
-                  }
-                  className="rounded-full border border-black/15 px-3 py-1.5 text-xs disabled:opacity-50 dark:border-white/15"
-                >
-                  🖨
-                </button>
+                />
                 {next && (
                   <button
                     type="button"

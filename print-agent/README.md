@@ -6,8 +6,10 @@ pedido entra a cocina imprime automáticamente la **comanda** (cocina) y el
 **ticket del cliente**, con el mismo formato que OlaClick (logo/nombre,
 dirección, líneas con opciones, totales, estado de pago y código QR).
 
-> La impresión manual no necesita este agente: desde el panel (PDV o Pedidos)
-> el botón 🖨 abre el ticket en el navegador y usa el driver de la impresora.
+> **Reimprimir desde cualquier equipo:** el botón 🖨 del panel (PDV o Pedidos)
+> le pide el ticket a este agente por Realtime (canal `impresion`) y sale en la
+> térmica de la caja. Si el agente no contesta en 5 s, el panel abre el ticket
+> en el navegador y usa la impresora de ese equipo, como antes.
 
 ## Requisitos (Windows)
 

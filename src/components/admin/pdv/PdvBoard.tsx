@@ -24,6 +24,7 @@ import type {
 } from "@/lib/types";
 import PdvOrderEditor from "./PdvOrderEditor";
 import PdvPaymentModal from "./PdvPaymentModal";
+import PrintButton from "@/components/admin/PrintButton";
 
 type Tab = "mostrador" | "domicilio" | "mesas";
 
@@ -439,34 +440,18 @@ export default function PdvBoard({
                   )}
                 </div>
                 <div className="flex flex-wrap gap-2">
-                  <button
-                    type="button"
+                  <PrintButton
+                    orderId={order.id}
+                    kind="cliente"
+                    label="🖨 Ticket"
                     title="Imprimir ticket del cliente"
-                    onClick={() =>
-                      window.open(
-                        `/print/ticket/${order.id}?tipo=cliente`,
-                        "_blank",
-                        "width=420,height=720",
-                      )
-                    }
-                    className="rounded-full border border-black/15 px-3 py-1.5 text-xs disabled:opacity-50 dark:border-white/15"
-                  >
-                    🖨 Ticket
-                  </button>
-                  <button
-                    type="button"
+                  />
+                  <PrintButton
+                    orderId={order.id}
+                    kind="cocina"
+                    label="🖨 Comanda"
                     title="Imprimir comanda de cocina"
-                    onClick={() =>
-                      window.open(
-                        `/print/ticket/${order.id}?tipo=cocina`,
-                        "_blank",
-                        "width=420,height=720",
-                      )
-                    }
-                    className="rounded-full border border-black/15 px-3 py-1.5 text-xs disabled:opacity-50 dark:border-white/15"
-                  >
-                    🖨 Comanda
-                  </button>
+                  />
                   <button
                     type="button"
                     disabled={isPending}
