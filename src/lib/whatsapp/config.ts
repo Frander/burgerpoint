@@ -48,6 +48,9 @@ export const WA_TEMPLATES = {
   get estadoPedido() {
     return process.env.WA_TPL_ESTADO || "pedido_estado";
   },
+  get confirmacionPedido() {
+    return process.env.WA_TPL_CONFIRMACION || "pedido_confirmado";
+  },
 } as const;
 
 /**

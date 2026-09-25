@@ -161,3 +161,95 @@ export async function notifyOrderStatus(
     console.error("[whatsapp] aviso de estado:", (err as Error).message);
   }
 }
+
+/** Tope del detalle en la plantilla: Meta corta el cuerpo en 1024 caracteres. */
+const DETALLE_MAX = 600;
+
+/**
+ * Confirma al cliente un pedido a domicilio hecho desde la web, con su nombre,
+ * lo que pidió y el total.
+ *
+ * Quien pide por la web casi nunca nos ha escrito, así que va como plantilla
+ * (`WA_TPL_CONFIRMACION`, por defecto `pedido_confirmado`). Si escribió en las
+ * últimas 24 h sale como texto, gratis y con el detalle en renglones.
+ *
+ * Una sola vez por pedido (`confirmacion`). Nunca lanza.
+ */
+export async function notifyOrderConfirmation(orderId: string): Promise<void> {
+  if (!isWhatsappConfigured()) return;
+
+  try {
+    const supabase = createAdminClient();
+    if (!supabase) return;
+
+    const { data } = await supabase
+      .from("orders")
+      .select(
+        "code, customer_name, customer_phone, total, delivery_fee, order_items(product_name, quantity, order_item_modifiers(modifier_name))",
+      )
+      .eq("id", orderId)
+      .maybeSingle();
+
+    const order = data as {
+      code: string;
+      customer_name: string;
+      customer_phone: string | null;
+      total: number;
+      delivery_fee: number;
+      order_items: {
+        product_name: string;
+        quantity: number;
+        order_item_modifiers: { modifier_name: string }[] | null;
+      }[];
+    } | null;
+    if (!order) return;
+
+    const phone = normalizePhone(order.customer_phone, WHATSAPP.defaultCountryCode);
+    if (!phone) return;
+
+    const { data: contacto } = await supabase
+      .from("wa_contacts")
+      .select("opted_out")
+      .eq("phone", phone)
+      .maybeSingle();
+    if ((contacto as { opted_out: boolean } | null)?.opted_out) return;
+
+    const lineas = order.order_items.map((i) => {
+      const extras = (i.order_item_modifiers ?? []).map((m) => m.modifier_name);
+      return `${i.quantity}x ${i.product_name}${extras.length ? ` (${extras.join(", ")})` : ""}`;
+    });
+    if (Number(order.delivery_fee) > 0) {
+      lineas.push(`Envío ${formatMoney(Number(order.delivery_fee))}`);
+    }
+    const total = formatMoney(Number(order.total));
+    const nombre = order.customer_name.trim().split(/\s+/)[0] || order.customer_name;
+
+    if (await hasOpenWindow(phone)) {
+      await sendText({
+        to: phone,
+        orderId,
+        dedupeTag: "confirmacion",
+        body:
+          `🍔 ¡Gracias ${nombre}! Recibimos tu pedido *${order.code}*.\n\n` +
+          `${lineas.map((l) => `• ${l}`).join("\n")}\n\n` +
+          `*Total: ${total}*\n\nTe avisamos cuando vaya en camino. 🛵`,
+      });
+      return;
+    }
+
+    // En la plantilla el detalle va en una sola línea: Meta no acepta saltos
+    // de línea dentro de una variable.
+    let detalle = lineas.join(", ");
+    if (detalle.length > DETALLE_MAX) detalle = `${detalle.slice(0, DETALLE_MAX - 1)}…`;
+
+    await sendTemplate({
+      to: phone,
+      template: WA_TEMPLATES.confirmacionPedido,
+      orderId,
+      dedupeTag: "confirmacion",
+      variables: [nombre, order.code, detalle, total],
+    });
+  } catch (err) {
+    console.error("[whatsapp] confirmación de pedido:", (err as Error).message);
+  }
+}

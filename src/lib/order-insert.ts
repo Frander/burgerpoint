@@ -11,7 +11,7 @@ import type {
   Product,
 } from "@/lib/types";
 import { isSoldOut } from "@/lib/product";
-import { notifyNewOrder } from "@/lib/whatsapp/notify";
+import { notifyNewOrder, notifyOrderConfirmation } from "@/lib/whatsapp/notify";
 
 export interface OrderModifierInput {
   modifier_id?: string;
@@ -244,6 +244,11 @@ export async function insertOrder(
         customerName: input.customer_name.trim(),
         total,
       });
+      // Al cliente: confirmación de su domicilio pedido desde la web. Los del
+      // bot ya la reciben en el chat y los del PDV los toma la cajera.
+      if ((input.origin ?? "web") === "web" && input.type === "delivery") {
+        await notifyOrderConfirmation(orderId);
+      }
     });
   } catch {
     // `after` solo existe dentro de una petición; fuera de ella se omite.
