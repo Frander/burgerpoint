@@ -8,6 +8,18 @@ import { isSupabaseConfigured } from "@/lib/supabase/config";
  * /repartidor): si no hay usuario autenticado, redirige a /login.
  */
 export async function updateSession(request: NextRequest) {
+  // Si /auth/confirm no está en las Redirect URLs de Supabase, el enlace del
+  // correo cae en la Site URL (la portada) con ?code=. Se reenvía a donde toca.
+  if (
+    request.nextUrl.pathname === "/" &&
+    request.nextUrl.searchParams.has("code")
+  ) {
+    const url = request.nextUrl.clone();
+    url.pathname = "/auth/confirm";
+    url.searchParams.set("next", "/login/nueva");
+    return NextResponse.redirect(url);
+  }
+
   let supabaseResponse = NextResponse.next({ request });
 
   // Sin credenciales (modo preview): no hacemos nada.

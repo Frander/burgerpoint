@@ -6,12 +6,37 @@ import { createClient } from "@/lib/supabase/client";
 import { homeFor } from "@/lib/roles";
 import type { StaffRole } from "@/lib/types";
 
-export default function LoginForm() {
+export default function LoginForm({ linkError = false }: { linkError?: boolean }) {
   const router = useRouter();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(
+    linkError ? "El enlace no es válido o ya venció. Pide uno nuevo." : null,
+  );
   const [loading, setLoading] = useState(false);
+  // "recuperar": solo pide el correo y manda el enlace de Supabase.
+  const [modo, setModo] = useState<"entrar" | "recuperar">(
+    linkError ? "recuperar" : "entrar",
+  );
+  const [enviado, setEnviado] = useState(false);
+
+  async function handleRecover(e: React.FormEvent) {
+    e.preventDefault();
+    setLoading(true);
+    setError(null);
+
+    const supabase = createClient();
+    const { error } = await supabase.auth.resetPasswordForEmail(email, {
+      redirectTo: `${window.location.origin}/auth/confirm?next=/login/nueva`,
+    });
+
+    setLoading(false);
+    if (error) {
+      setError(error.message);
+      return;
+    }
+    setEnviado(true);
+  }
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -40,6 +65,62 @@ export default function LoginForm() {
 
     router.replace(homeFor((perfil?.role as StaffRole) ?? "cajero"));
     router.refresh();
+  }
+
+  if (modo === "recuperar") {
+    return (
+      <main className="flex min-h-full items-center justify-center px-4">
+        <form
+          onSubmit={handleRecover}
+          className="w-full max-w-sm rounded-xl border border-black/10 p-6 dark:border-white/10"
+        >
+          <h1 className="text-xl font-bold">🍔 Burguer Point</h1>
+          <p className="mb-6 text-sm text-black/60 dark:text-white/60">
+            Recuperar contraseña
+          </p>
+
+          {enviado ? (
+            <p className="mb-4 text-sm">
+              Si <b>{email}</b> tiene cuenta, te llegó un correo con un enlace
+              para poner una contraseña nueva. Revisa también spam.
+            </p>
+          ) : (
+            <>
+              <label className="mb-1 block text-sm font-medium">Correo</label>
+              <input
+                type="email"
+                required
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                className="mb-4 w-full rounded-md border border-black/15 px-3 py-2 text-sm dark:border-white/15 dark:bg-transparent"
+              />
+
+              {error && <p className="mb-4 text-sm text-red-600">{error}</p>}
+
+              <button
+                type="submit"
+                disabled={loading}
+                className="w-full rounded-md bg-black px-3 py-2 text-sm font-medium text-white disabled:opacity-50 dark:bg-white dark:text-black"
+              >
+                {loading ? "Enviando…" : "Enviar enlace"}
+              </button>
+            </>
+          )}
+
+          <button
+            type="button"
+            onClick={() => {
+              setModo("entrar");
+              setEnviado(false);
+              setError(null);
+            }}
+            className="mt-4 w-full text-center text-sm text-black/60 underline dark:text-white/60"
+          >
+            Volver a entrar
+          </button>
+        </form>
+      </main>
+    );
   }
 
   return (
@@ -79,6 +160,17 @@ export default function LoginForm() {
           className="w-full rounded-md bg-black px-3 py-2 text-sm font-medium text-white disabled:opacity-50 dark:bg-white dark:text-black"
         >
           {loading ? "Entrando…" : "Entrar"}
+        </button>
+
+        <button
+          type="button"
+          onClick={() => {
+            setModo("recuperar");
+            setError(null);
+          }}
+          className="mt-4 w-full text-center text-sm text-black/60 underline dark:text-white/60"
+        >
+          ¿Olvidaste tu contraseña?
         </button>
       </form>
     </main>
