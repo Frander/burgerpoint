@@ -20,6 +20,15 @@ export async function updateSession(request: NextRequest) {
     return NextResponse.redirect(url);
   }
 
+  // Supabase rechazó el enlace (vencido o ya usado) y manda ?error_code= a la
+  // portada: al login, que ya muestra el aviso y deja pedir otro.
+  if (
+    request.nextUrl.pathname === "/" &&
+    request.nextUrl.searchParams.has("error_code")
+  ) {
+    return NextResponse.redirect(new URL("/login?error=enlace", request.url));
+  }
+
   let supabaseResponse = NextResponse.next({ request });
 
   // Sin credenciales (modo preview): no hacemos nada.
