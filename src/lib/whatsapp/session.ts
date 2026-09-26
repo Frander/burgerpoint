@@ -64,6 +64,26 @@ export interface SessionData {
   couponCode?: string;
   /** Últimos turnos de la conversación con la IA (fase 5). */
   history?: { role: "user" | "assistant"; content: string }[];
+  /** Paso en que iba cuando alguien del staff tomó la conversación. */
+  resumeState?: BotState;
+}
+
+/** Los mismos turnos que recuerda la IA (MAX_HISTORIAL en ai.ts). */
+const MAX_HISTORY = 10;
+
+/**
+ * Anota un turno en el historial que lee la IA. Se usa mientras atiende una
+ * persona, para que al volver el bot sepa qué se dijo en la pausa.
+ */
+export function pushHistory(
+  data: SessionData,
+  role: "user" | "assistant",
+  content: string,
+): SessionData {
+  return {
+    ...data,
+    history: [...(data.history ?? []), { role, content }].slice(-MAX_HISTORY),
+  };
 }
 
 export interface BotSession {
@@ -114,13 +134,34 @@ export async function clearSession(phone: string): Promise<void> {
 }
 
 /**
- * Pausa o reactiva el bot para un teléfono. Se conserva `data` (el carrito a
- * medias) para que, al reactivarlo, el cliente no pierda lo que llevaba.
+ * Pausa o reactiva el bot para un teléfono. Se conservan el carrito y el paso
+ * en que iba (`resumeState`), para que al reactivarlo el cliente siga donde se
+ * quedó en vez de volver al inicio. Devuelve la sesión ya reactivada (o null si
+ * no había nada que reactivar) para poder avisarle al cliente.
  */
-export async function setBotPaused(phone: string, paused: boolean): Promise<void> {
+export async function setBotPaused(
+  phone: string,
+  paused: boolean,
+): Promise<BotSession | null> {
   const sesion = await getSession(phone);
-  if (!paused && sesion.state !== "humano") return;
-  await saveSession(phone, paused ? "humano" : "inicio", sesion.data);
+
+  if (paused) {
+    if (sesion.state === "humano") return null;
+    await saveSession(phone, "humano", { ...sesion.data, resumeState: sesion.state });
+    return null;
+  }
+
+  if (sesion.state !== "humano") return null;
+  const { resumeState, ...data } = sesion.data;
+  const state = resumeState ?? "inicio";
+  await saveSession(phone, state, data);
+  return { phone, state, data };
+}
+
+/** Lo que escribió el staff a mano queda en el historial de la IA. */
+export async function recordStaffReply(phone: string, text: string): Promise<void> {
+  const sesion = await getSession(phone);
+  await saveSession(phone, sesion.state, pushHistory(sesion.data, "assistant", text));
 }
 
 /**

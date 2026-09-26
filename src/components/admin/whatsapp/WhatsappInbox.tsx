@@ -3,8 +3,15 @@
 import { useEffect, useMemo, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
-import { replyToContact, toggleBot } from "@/app/admin/whatsapp/actions";
-import type { WaContact, WaMessage } from "@/lib/types";
+import {
+  confirmTransferPayment,
+  markConversationRead,
+  replyToContact,
+  toggleBot,
+} from "@/app/admin/whatsapp/actions";
+import { formatMoney } from "@/lib/format";
+import { ORDER_TYPE_META, orderStatusLabel } from "@/lib/orders";
+import type { WaContact, WaContactOrder, WaMessage } from "@/lib/types";
 
 const STATUS_LABEL: Record<string, string> = {
   pending: "Enviando…",
@@ -105,14 +112,22 @@ function windowOpen(contact: WaContact | null): boolean {
   return Date.now() - new Date(contact.last_inbound_at).getTime() < WINDOW_MS;
 }
 
+/** El cliente escribió después de la última vez que alguien abrió el chat. */
+function isUnread(c: WaContact): boolean {
+  if (!c.last_inbound_at) return false;
+  return !c.last_read_at || c.last_inbound_at > c.last_read_at;
+}
+
 export default function WhatsappInbox({
   initialContacts,
   initialMessages,
+  orders,
   selectedPhone,
   botPausedUntil,
 }: {
   initialContacts: WaContact[];
   initialMessages: WaMessage[];
+  orders: WaContactOrder[];
   selectedPhone: string | null;
   botPausedUntil: string | null;
 }) {
@@ -120,6 +135,7 @@ export default function WhatsappInbox({
   const [contacts, setContacts] = useState<WaContact[]>(initialContacts);
   const [messages, setMessages] = useState<WaMessage[]>(initialMessages);
   const [live, setLive] = useState(false);
+  const [soloSinLeer, setSoloSinLeer] = useState(false);
   const [draft, setDraft] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
@@ -155,6 +171,26 @@ export default function WhatsappInbox({
       else setError(res.error ?? "No se pudo cambiar el bot.");
     });
   }
+
+  function confirmarPago(order: WaContactOrder) {
+    if (
+      !confirm(
+        `¿Ya verificaste la transferencia de ${formatMoney(Number(order.total))} del pedido ${order.code}?\n\nSe marca pagado y se le avisa al cliente por WhatsApp.`,
+      )
+    )
+      return;
+    setError(null);
+    startTransition(async () => {
+      const res = await confirmTransferPayment(order.id);
+      if (res.ok) router.refresh();
+      else setError(res.error ?? "No se pudo registrar el pago.");
+    });
+  }
+
+  // Abrir la conversación la da por leída (para todo el staff).
+  useEffect(() => {
+    if (selectedPhone) void markConversationRead(selectedPhone);
+  }, [selectedPhone]);
 
   // El servidor ya trae los mensajes correctos al cambiar ?phone=; solo hay
   // que sincronizar el estado local cuando cambia la selección.
@@ -217,6 +253,8 @@ export default function WhatsappInbox({
             setMessages((prev) =>
               prev.some((m) => m.id === row.id) ? prev : [...prev, row],
             );
+            // Lo está viendo: no tiene por qué quedar pendiente.
+            if (row.direction === "in") void markConversationRead(selectedPhone);
           } else if (payload.eventType === "UPDATE") {
             const row = payload.new as WaMessage;
             setMessages((prev) => prev.map((m) => (m.id === row.id ? row : m)));
@@ -235,6 +273,15 @@ export default function WhatsappInbox({
     [contacts, selectedPhone],
   );
   const canWrite = windowOpen(selectedContact);
+  // La que está abierta nunca cuenta como pendiente, aunque el aviso de "leído"
+  // tarde un instante en volver por realtime.
+  const pendiente = (c: WaContact) => c.phone !== selectedPhone && isUnread(c);
+  const sinLeer = contacts.filter(pendiente).length;
+  const visibles = soloSinLeer ? contacts.filter(pendiente) : contacts;
+
+  useEffect(() => {
+    document.title = sinLeer > 0 ? `(${sinLeer}) WhatsApp` : "WhatsApp";
+  }, [sinLeer]);
   const botPaused = botPausedUntil !== null;
 
   return (
@@ -254,14 +301,34 @@ export default function WhatsappInbox({
             {live ? "En vivo" : "Conectando…"}
           </span>
         </div>
+        <div className="flex gap-1 border-b border-black/10 px-2 py-1.5 text-xs dark:border-white/10">
+          {[
+            { value: false, label: "Todas" },
+            { value: true, label: `Sin leer${sinLeer > 0 ? ` (${sinLeer})` : ""}` },
+          ].map((f) => (
+            <button
+              key={f.label}
+              type="button"
+              onClick={() => setSoloSinLeer(f.value)}
+              className={`rounded-full px-2.5 py-1 font-medium ${
+                soloSinLeer === f.value
+                  ? "bg-black text-white dark:bg-white dark:text-black"
+                  : "text-black/60 hover:bg-black/5 dark:text-white/60 dark:hover:bg-white/10"
+              }`}
+            >
+              {f.label}
+            </button>
+          ))}
+        </div>
         <div className="flex-1 overflow-y-auto">
-          {contacts.length === 0 && (
+          {visibles.length === 0 && (
             <p className="p-4 text-center text-xs text-black/40 dark:text-white/40">
-              Todavía no hay conversaciones.
+              {soloSinLeer ? "No hay mensajes pendientes. 🎉" : "Todavía no hay conversaciones."}
             </p>
           )}
-          {contacts.map((c) => {
+          {visibles.map((c) => {
             const active = c.phone === selectedPhone;
+            const unread = pendiente(c);
             return (
               <button
                 key={c.phone}
@@ -271,11 +338,18 @@ export default function WhatsappInbox({
                 }`}
               >
                 <span className="flex items-center justify-between gap-2">
-                  <span className="truncate font-medium">
+                  <span className={`truncate ${unread ? "font-bold" : "font-medium"}`}>
                     {c.name || formatPhone(c.phone)}
                   </span>
-                  <span className="shrink-0 text-[11px] text-black/40 dark:text-white/40">
+                  <span
+                    className={`flex shrink-0 items-center gap-1.5 text-[11px] ${
+                      unread ? "font-semibold text-green-600" : "text-black/40 dark:text-white/40"
+                    }`}
+                  >
                     {relativeSince(c.last_inbound_at)}
+                    {unread && (
+                      <span className="h-2.5 w-2.5 rounded-full bg-green-600" aria-label="Sin leer" />
+                    )}
                   </span>
                 </span>
                 <span className="flex items-center gap-2 text-xs text-black/50 dark:text-white/50">
@@ -337,6 +411,42 @@ export default function WhatsappInbox({
                 </button>
               </div>
             </div>
+
+            {orders.length > 0 && (
+              <div className="flex flex-col gap-1.5 border-b border-black/10 px-4 py-2 dark:border-white/10">
+                {orders.map((o) => {
+                  const pagado = o.payment_status === "pagado";
+                  return (
+                    <div key={o.id} className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs">
+                      <span className="font-bold">{o.code}</span>
+                      <span className="text-black/60 dark:text-white/60">
+                        {ORDER_TYPE_META[o.type]?.label ?? o.type} ·{" "}
+                        {orderStatusLabel(o.status, o.type)} · {formatMoney(Number(o.total))}
+                      </span>
+                      <span
+                        className={`rounded-full px-2 py-0.5 text-[11px] font-medium ${
+                          pagado
+                            ? "bg-green-100 text-green-800 dark:bg-green-500/15 dark:text-green-300"
+                            : "bg-amber-100 text-amber-800 dark:bg-amber-500/15 dark:text-amber-200"
+                        }`}
+                      >
+                        {pagado ? "Pagado" : "No pagado"}
+                      </span>
+                      {!pagado && (
+                        <button
+                          type="button"
+                          onClick={() => confirmarPago(o)}
+                          disabled={pending}
+                          className="ml-auto rounded-lg bg-green-600 px-2.5 py-1 text-xs font-medium text-white hover:bg-green-700 disabled:opacity-50"
+                        >
+                          ✓ Confirmar pago por transferencia
+                        </button>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            )}
 
             <div className="flex-1 space-y-2 overflow-y-auto bg-black/[.015] p-4 dark:bg-white/[.02]">
               {messages.length === 0 && (

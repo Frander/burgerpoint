@@ -1,7 +1,7 @@
 import { createClient } from "@/lib/supabase/server";
 import { requireSection } from "@/lib/supabase/auth";
 import { isSupabaseConfigured } from "@/lib/supabase/config";
-import type { WaContact, WaMessage } from "@/lib/types";
+import type { WaContact, WaContactOrder, WaMessage } from "@/lib/types";
 import WhatsappInbox from "@/components/admin/whatsapp/WhatsappInbox";
 
 export const dynamic = "force-dynamic";
@@ -11,6 +11,10 @@ function pausedUntil(sesion: { state: string; updated_at: string } | null): stri
   if (sesion?.state !== "humano") return null;
   const until = new Date(sesion.updated_at).getTime() + 6 * 60 * 60 * 1000;
   return until > Date.now() ? new Date(until).toISOString() : null;
+}
+
+function haceDias(dias: number): string {
+  return new Date(Date.now() - dias * 24 * 60 * 60 * 1000).toISOString();
 }
 
 export default async function WhatsappPage({
@@ -40,10 +44,18 @@ export default async function WhatsappPage({
     .limit(200);
 
   let messages: WaMessage[] = [];
+  let orders: WaContactOrder[] = [];
   // Hasta cuándo sigue callado el bot en esta conversación (null = activo).
   let botPausedUntil: string | null = null;
   if (selectedPhone) {
-    const [{ data }, { data: sesion }] = await Promise.all([
+    // Pedidos de los últimos 3 días de este cliente. Los del bot guardan el
+    // teléfono normalizado; los de la web, como lo escribió el cliente, así que
+    // se busca también por los 10 dígitos locales (igual que el comando
+    // "estado" del bot).
+    // Solo dígitos: el valor viene de la URL y va dentro del filtro .or().
+    const tel = selectedPhone.replace(/\D/g, "");
+    const local = tel.slice(-10);
+    const [{ data }, { data: sesion }, { data: pedidos }] = await Promise.all([
       supabase
         .from("wa_messages")
         .select("*")
@@ -55,7 +67,19 @@ export default async function WhatsappPage({
         .select("state, updated_at")
         .eq("phone", selectedPhone)
         .maybeSingle(),
+      // Sin un número real, "%%" traería los pedidos de todo mundo.
+      local.length < 8
+        ? Promise.resolve({ data: [] })
+        : supabase
+            .from("orders")
+            .select("id, code, type, status, total, payment_status, created_at")
+            .or(`customer_phone.eq.${tel},customer_phone.ilike.%${local}%`)
+            .neq("status", "cancelado")
+            .gte("created_at", haceDias(3))
+            .order("created_at", { ascending: false })
+            .limit(5),
     ]);
+    orders = (pedidos ?? []) as WaContactOrder[];
     messages = (data ?? []) as WaMessage[];
     botPausedUntil = pausedUntil(sesion as { state: string; updated_at: string } | null);
   }
@@ -64,6 +88,7 @@ export default async function WhatsappPage({
     <WhatsappInbox
       initialContacts={(contacts ?? []) as WaContact[]}
       initialMessages={messages}
+      orders={orders}
       selectedPhone={selectedPhone ?? null}
       botPausedUntil={botPausedUntil}
     />

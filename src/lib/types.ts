@@ -212,7 +212,20 @@ export interface WaContact {
   phone: string;
   name: string | null;
   last_inbound_at: string | null;
+  /** Última vez que alguien del staff abrió la conversación (0016). */
+  last_read_at?: string | null;
   opted_out: boolean;
+  created_at: string;
+}
+
+/** Pedido reciente de un contacto, para la barra de la conversación. */
+export interface WaContactOrder {
+  id: string;
+  code: string;
+  type: OrderType;
+  status: OrderStatus;
+  total: number;
+  payment_status: PaymentStatus;
   created_at: string;
 }
 

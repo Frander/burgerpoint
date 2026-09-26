@@ -296,3 +296,73 @@ export async function notifyOrderConfirmation(orderId: string): Promise<void> {
     console.error("[whatsapp] confirmación de pedido:", (err as Error).message);
   }
 }
+
+/**
+ * Le avisa al cliente que su transferencia ya se verificó y el pedido quedó
+ * pagado. Mismo criterio que los avisos de estado: texto libre gratis dentro de
+ * la ventana de 24 h; fuera de ella, la plantilla `pedido_estado` solo si
+ * WHATSAPP_STATUS_TEMPLATES lo permite. Sale una sola vez por pedido.
+ *
+ * Nunca lanza: un fallo de WhatsApp no puede tumbar el cobro.
+ */
+export async function notifyPaymentConfirmed(orderId: string): Promise<void> {
+  if (!isWhatsappConfigured()) return;
+
+  try {
+    const supabase = createAdminClient();
+    if (!supabase) return;
+
+    const { data } = await supabase
+      .from("orders")
+      .select("code, type, customer_name, customer_phone, total, payment_status")
+      .eq("id", orderId)
+      .maybeSingle();
+
+    const order = data as {
+      code: string;
+      type: OrderType;
+      customer_name: string;
+      customer_phone: string | null;
+      total: number;
+      payment_status: string;
+    } | null;
+    // Un abono parcial no se festeja: el aviso es para cuando ya quedó pagado.
+    if (!order || order.payment_status !== "pagado") return;
+
+    const phone = normalizePhone(order.customer_phone, WHATSAPP.defaultCountryCode);
+    if (!phone) return;
+
+    const { data: contacto } = await supabase
+      .from("wa_contacts")
+      .select("opted_out")
+      .eq("phone", phone)
+      .maybeSingle();
+    if ((contacto as { opted_out: boolean } | null)?.opted_out) return;
+
+    const nombre = order.customer_name.trim().split(/\s+/)[0] || order.customer_name;
+
+    if (await hasOpenWindow(phone)) {
+      await sendText({
+        to: phone,
+        orderId,
+        dedupeTag: "pago",
+        body:
+          `✅ ¡Gracias ${nombre}! Verificamos tu pago de *${formatMoney(Number(order.total))}* ` +
+          `del pedido *${order.code}*. Ya quedó pagado. 🍔`,
+      });
+      return;
+    }
+
+    if (!permitePlantillaDeEstado()) return;
+
+    await sendTemplate({
+      to: phone,
+      template: WA_TEMPLATES.estadoPedido,
+      orderId,
+      dedupeTag: "pago",
+      variables: [order.customer_name, order.code, "Pago confirmado"],
+    });
+  } catch (err) {
+    console.error("[whatsapp] aviso de pago:", (err as Error).message);
+  }
+}

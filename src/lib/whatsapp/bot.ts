@@ -17,6 +17,7 @@ import { handleWithAI, isAiEnabled } from "@/lib/whatsapp/ai";
 import {
   clearSession,
   getSession,
+  pushHistory,
   saveSession,
   setOptOut,
   type BotSession,
@@ -326,8 +327,9 @@ export async function handleIncoming(
 
   // Lo está atendiendo una persona desde el panel: el bot no contesta nada.
   // Se vuelve a guardar para que la pausa no caduque a media conversación.
+  // Lo que escribe queda en el historial para que la IA no pierda el hilo.
   if (sesion.state === "humano") {
-    await saveSession(phone, "humano", data);
+    await saveSession(phone, "humano", pushHistory(data, "user", texto));
     return { mensajes: [] };
   }
 
@@ -731,6 +733,26 @@ export async function handleIncoming(
       return { mensajes: pantalla.mensajes };
     }
   }
+}
+
+/**
+ * Mensaje para el cliente cuando el staff reactiva el bot: le recuerda lo que
+ * llevaba y qué contestar. Sin carrito no hay nada que retomar (null).
+ */
+export async function mensajeAlRetomar(sesion: BotSession): Promise<string | null> {
+  const { phone, state, data } = sesion;
+  if ((data.cart?.length ?? 0) === 0) return null;
+
+  const intro = "🤖 Seguimos con tu pedido.\n\n";
+  if (state === "confirmar") return intro + (await resumenFinal(data));
+  if (state === "ia") {
+    return `${intro}${cartResumen(data.cart!)}\n\n¿Quieres agregar algo más o lo confirmamos?`;
+  }
+
+  // A media pantalla numerada (categoría, opciones…) los números que vio ya no
+  // sirven: se le regresa al carrito, que tiene sus propias opciones.
+  await saveSession(phone, "carrito", data);
+  return intro + cartResumen(data.cart!) + ACCIONES_CARRITO;
 }
 
 /** Respuesta al comando *puntos*: cuánto lleva y qué puede hacer con ello. */

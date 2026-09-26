@@ -4,7 +4,7 @@ import { revalidatePath } from "next/cache";
 import { after } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { assertSection } from "@/lib/supabase/auth";
-import { notifyOrderStatus } from "@/lib/whatsapp/notify";
+import { notifyOrderStatus, notifyPaymentConfirmed } from "@/lib/whatsapp/notify";
 import { getProduct } from "@/lib/menu";
 import { getDefaultCourierId } from "@/lib/settings";
 import { awardPointsForOrder } from "@/lib/loyalty";
@@ -174,9 +174,12 @@ export async function registerPayment(
   const { error } = await supabase.from("order_payments").insert(row);
   if (error) return { ok: false, error: error.message };
 
-  // Puede que este pago sea lo último que faltaba para dar puntos.
+  // Puede que este pago sea lo último que faltaba para dar puntos. Y una
+  // transferencia se paga a distancia: el cliente espera saber que llegó (en
+  // mostrador, con efectivo o tarjeta, ya lo sabe).
   after(async () => {
     await awardPointsForOrder(orderId);
+    if (method === "transferencia") await notifyPaymentConfirmed(orderId);
   });
 
   revalidatePdv();
