@@ -161,40 +161,27 @@ export async function priceLines(
   return { lines };
 }
 
+/** Líneas en el formato que esperan las funciones de la base (0017). */
+function linesPayload(lines: PricedLine[]) {
+  return lines.map(({ modifiers, ...item }) => ({ ...item, modifiers }));
+}
+
 /**
- * Inserta las líneas (y sus opciones) de un pedido ya creado.
- * Los ids se generan aquí (sin RETURNING): el rol anónimo puede INSERTar
- * pedidos pero no leerlos, y `insert().select()` requeriría SELECT.
+ * Agrega líneas (y sus opciones) a un pedido ya creado, todas en una sola
+ * transacción (`insert_order_items`, migración 0017): o entran todas o ninguna.
  */
 export async function insertLines(
   supabase: SupabaseClient,
   orderId: string,
   lines: PricedLine[],
 ): Promise<{ ok: boolean; error?: string }> {
-  for (const line of lines) {
-    const { modifiers, ...itemRow } = line;
-    const itemId = randomUUID();
-    const { error: itemErr } = await supabase
-      .from("order_items")
-      .insert({ ...itemRow, id: itemId, order_id: orderId });
-
-    if (itemErr) {
-      return { ok: false, error: "No se pudieron guardar los productos." };
-    }
-
-    if (modifiers.length > 0) {
-      const { error: modErr } = await supabase.from("order_item_modifiers").insert(
-        modifiers.map((m) => ({
-          order_item_id: itemId,
-          modifier_name: m.modifier_name,
-          extra_price: m.extra_price,
-          group_name: m.group_name,
-        })),
-      );
-      if (modErr) {
-        return { ok: false, error: "No se pudieron guardar las opciones." };
-      }
-    }
+  const { error } = await supabase.rpc("insert_order_items", {
+    p_order_id: orderId,
+    p_items: linesPayload(lines),
+  });
+  if (error) {
+    console.error("[pedidos] no se pudieron guardar las líneas:", error.message);
+    return { ok: false, error: "No se pudieron guardar los productos." };
   }
   return { ok: true };
 }
@@ -232,30 +219,35 @@ export async function insertOrder(
 
   const orderId = randomUUID();
   const code = generateOrderCode();
-  const { error: orderErr } = await supabase.from("orders").insert({
-    id: orderId,
-    code,
-    customer_name: input.customer_name.trim(),
-    customer_phone: input.customer_phone?.trim() || null,
-    type: input.type,
-    address: input.address?.trim() || null,
-    notes: input.notes?.trim() || null,
-    total,
-    origin: input.origin ?? "web",
-    status: input.status ?? "nuevo",
-    delivery_fee: deliveryFee,
-    discount,
-    coupon_id: couponId,
-    mesa_id: input.mesa_id ?? null,
-    served_by: input.served_by ?? null,
+  // Pedido y productos entran juntos en una transacción (`create_order`,
+  // migración 0017). Si se insertaran por separado, Realtime avisaría del
+  // pedido antes de que tuviera todas sus líneas y el PDV, la cocina y el
+  // agente de impresión lo leerían incompleto.
+  const { error: orderErr } = await supabase.rpc("create_order", {
+    p_order: {
+      id: orderId,
+      code,
+      customer_name: input.customer_name.trim(),
+      customer_phone: input.customer_phone?.trim() || null,
+      type: input.type,
+      address: input.address?.trim() || null,
+      notes: input.notes?.trim() || null,
+      total,
+      origin: input.origin ?? "web",
+      status: input.status ?? "nuevo",
+      delivery_fee: deliveryFee,
+      discount,
+      coupon_id: couponId,
+      mesa_id: input.mesa_id ?? null,
+      served_by: input.served_by ?? null,
+    },
+    p_items: linesPayload(lines),
   });
 
   if (orderErr) {
+    console.error("[pedidos] no se pudo crear el pedido:", orderErr.message);
     return { ok: false, error: "No se pudo crear el pedido." };
   }
-
-  const linesRes = await insertLines(supabase, orderId, lines);
-  if (!linesRes.ok) return { ok: false, error: linesRes.error };
 
   // El cupón se quema ya con el pedido creado. Si alguien lo usó un instante
   // antes, el pedido se queda con el descuento: es menos malo que cobrarle de
