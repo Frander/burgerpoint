@@ -228,5 +228,7 @@ export interface WaMessage {
   order_id: string | null;
   status: string | null;
   error: string | null;
+  /** En los entrantes con foto/archivo: `{ media: { id, mime_type, filename } }`. */
+  payload: { media?: { id: string; mime_type?: string; filename?: string } } | null;
   created_at: string;
 }

@@ -38,7 +38,22 @@ export interface InboundMessage {
   profileName: string | null;
   /** Tipo original de Meta: 'text', 'interactive', 'audio'… */
   type: string;
+  /** Foto, audio, video o archivo: el id para bajarlo de Meta después. */
+  media?: WaMedia;
+  /** Texto que el cliente escribió junto con la foto o el archivo. */
+  caption?: string;
 }
+
+export interface WaMedia {
+  id: string;
+  mime_type?: string;
+  filename?: string;
+}
+
+/** Tipos de Meta que traen un archivo adjunto (en `msg[tipo]`). */
+const MEDIA_TYPES = ["image", "document", "audio", "video", "sticker"] as const;
+type MediaType = (typeof MEDIA_TYPES)[number];
+type MetaMedia = { id?: string; mime_type?: string; filename?: string; caption?: string };
 
 interface MetaPayload {
   object?: string;
@@ -52,6 +67,11 @@ interface MetaPayload {
           type?: string;
           text?: { body?: string };
           button?: { text?: string };
+          image?: MetaMedia;
+          document?: MetaMedia;
+          audio?: MetaMedia;
+          video?: MetaMedia;
+          sticker?: MetaMedia;
           interactive?: {
             button_reply?: { id?: string; title?: string };
             list_reply?: { id?: string; title?: string };
@@ -91,12 +111,21 @@ export function parseInbound(payload: unknown): InboundMessage[] {
           msg.button?.text ??
           "";
 
+        const tipo = msg.type ?? "text";
+        const adjunto = MEDIA_TYPES.includes(tipo as MediaType)
+          ? msg[tipo as MediaType]
+          : undefined;
+
         salida.push({
           wamid: msg.id,
           from: msg.from,
           text: texto,
           profileName: nombre,
-          type: msg.type ?? "text",
+          type: tipo,
+          media: adjunto?.id
+            ? { id: adjunto.id, mime_type: adjunto.mime_type, filename: adjunto.filename }
+            : undefined,
+          caption: adjunto?.caption,
         });
       }
     }
@@ -148,7 +177,8 @@ export async function claimInbound(msg: InboundMessage): Promise<boolean> {
     phone: msg.from,
     wamid: msg.wamid,
     kind: msg.type,
-    body: msg.text,
+    body: msg.text || msg.caption || null,
+    payload: msg.media ? { media: msg.media } : null,
     status: "received",
   });
 

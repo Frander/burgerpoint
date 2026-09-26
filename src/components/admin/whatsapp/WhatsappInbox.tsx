@@ -32,6 +32,52 @@ function formatTime(iso: string): string {
   });
 }
 
+const MEDIA_LABEL: Record<string, string> = {
+  image: "📷 Foto",
+  sticker: "Sticker",
+  audio: "🎤 Audio",
+  video: "🎬 Video",
+  document: "📄 Archivo",
+};
+
+/** Foto, audio, video o archivo del cliente, servido por /api/whatsapp/media. */
+function Adjunto({ m }: { m: WaMessage }) {
+  const media = m.payload?.media;
+  const kind = m.kind ?? "";
+  if (!media) {
+    // Llegó antes de que se guardara el id del adjunto: ya no se puede bajar.
+    return MEDIA_LABEL[kind] ? (
+      <p className="italic opacity-60">{MEDIA_LABEL[kind]} (no disponible)</p>
+    ) : null;
+  }
+
+  const src = `/api/whatsapp/media/${m.id}`;
+  if (kind === "image" || kind === "sticker") {
+    return (
+      <a href={src} target="_blank" rel="noreferrer" className="mb-1 block">
+        {/* eslint-disable-next-line @next/next/no-img-element -- viene de una ruta privada, no de un dominio fijo */}
+        <img
+          src={src}
+          alt={MEDIA_LABEL[kind]}
+          loading="lazy"
+          className={`rounded-lg ${kind === "sticker" ? "w-32" : "max-h-80 w-full object-contain"}`}
+        />
+      </a>
+    );
+  }
+  if (kind === "audio") {
+    return <audio controls preload="none" src={src} className="mb-1 max-w-full" />;
+  }
+  if (kind === "video") {
+    return <video controls preload="metadata" src={src} className="mb-1 max-h-80 rounded-lg" />;
+  }
+  return (
+    <a href={src} target="_blank" rel="noreferrer" className="mb-1 block underline">
+      📄 {media.filename ?? "Abrir archivo"}
+    </a>
+  );
+}
+
 function formatDay(iso: string): string {
   return new Date(iso).toLocaleDateString("es-MX", {
     day: "2-digit",
@@ -328,7 +374,10 @@ export default function WhatsappInbox({
                             Escrito a mano
                           </p>
                         )}
-                        <p className="whitespace-pre-wrap">{m.body || "(sin texto)"}</p>
+                        <Adjunto m={m} />
+                        {(m.body || !MEDIA_LABEL[m.kind ?? ""]) && (
+                          <p className="whitespace-pre-wrap">{m.body || "(sin texto)"}</p>
+                        )}
                         <p
                           className={`mt-1 text-right text-[10px] ${
                             out ? "opacity-60" : "text-black/40 dark:text-white/40"
