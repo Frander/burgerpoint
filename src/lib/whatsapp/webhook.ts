@@ -57,7 +57,11 @@ interface MetaPayload {
             list_reply?: { id?: string; title?: string };
           };
         }[];
-        statuses?: { id?: string; status?: string }[];
+        statuses?: {
+          id?: string;
+          status?: string;
+          errors?: { code?: number; title?: string; message?: string }[];
+        }[];
       };
     }[];
   }[];
@@ -102,14 +106,27 @@ export function parseInbound(payload: unknown): InboundMessage[] {
 }
 
 /** Acuses de entrega/lectura, para la bitácora. */
-export function parseStatuses(payload: unknown): { wamid: string; status: string }[] {
+export interface StatusEvent {
+  wamid: string;
+  status: string;
+  /** Motivo que da Meta cuando el estado es "failed" (p. ej. método de pago). */
+  error?: string;
+}
+
+export function parseStatuses(payload: unknown): StatusEvent[] {
   const data = payload as MetaPayload;
-  const salida: { wamid: string; status: string }[] = [];
+  const salida: StatusEvent[] = [];
 
   for (const entry of data?.entry ?? []) {
     for (const change of entry.changes ?? []) {
       for (const st of change.value?.statuses ?? []) {
-        if (st.id && st.status) salida.push({ wamid: st.id, status: st.status });
+        if (!st.id || !st.status) continue;
+        const e = st.errors?.[0];
+        salida.push({
+          wamid: st.id,
+          status: st.status,
+          error: e ? `${e.message ?? e.title ?? "Error"}${e.code ? ` (code ${e.code})` : ""}` : undefined,
+        });
       }
     }
   }
@@ -144,8 +161,15 @@ export async function claimInbound(msg: InboundMessage): Promise<boolean> {
 }
 
 /** Guarda el acuse (sent → delivered → read) en la fila del mensaje saliente. */
-export async function recordStatus(wamid: string, status: string): Promise<void> {
+export async function recordStatus(
+  wamid: string,
+  status: string,
+  error?: string,
+): Promise<void> {
   const supabase = createAdminClient();
   if (!supabase) return;
-  await supabase.from("wa_messages").update({ status }).eq("wamid", wamid);
+  await supabase
+    .from("wa_messages")
+    .update(error ? { status, error } : { status })
+    .eq("wamid", wamid);
 }

@@ -86,8 +86,8 @@ export async function POST(request: NextRequest) {
 }
 
 async function procesar(payload: unknown) {
-  for (const { wamid, status } of parseStatuses(payload)) {
-    await recordStatus(wamid, status);
+  for (const { wamid, status, error } of parseStatuses(payload)) {
+    await recordStatus(wamid, status, error);
   }
 
   const mensajes = parseInbound(payload);
