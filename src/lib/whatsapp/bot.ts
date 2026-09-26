@@ -287,6 +287,22 @@ const AYUDA = `Puedo ayudarte a hacer tu pedido 🍔
 *cancelar* — empezar de nuevo
 *baja* — no recibir más mensajes`;
 
+const { transferencia } = BUSINESS;
+
+/** Lo que el bot contesta cuando el cliente quiere pagar por transferencia. */
+export const TEXTO_TRANSFERENCIA = `💳 *Pago por transferencia*
+
+CLABE: *${transferencia.clabe}*
+Beneficiario: ${transferencia.beneficiario}
+Institución: ${transferencia.institucion}
+
+Cuando hagas la transferencia, *mándanos la foto o captura del comprobante* por aquí para confirmar tu pago. 🙏`;
+
+/** "¿Puedo pagar con transferencia?", "pásame la clabe", "¿a qué cuenta deposito?"… */
+function pideTransferencia(cmd: string): boolean {
+  return /transfer|transfier|clabe|deposit|numero de cuenta|cuenta bancaria|cuenta para pagar/.test(cmd);
+}
+
 export async function handleIncoming(
   phone: string,
   texto: string,
@@ -317,6 +333,11 @@ export async function handleIncoming(
 
   if (["ayuda", "help", "?"].includes(cmd)) {
     return { mensajes: [AYUDA] };
+  }
+
+  // No cambia el paso en que va: el cliente sigue armando su pedido después.
+  if (pideTransferencia(cmd)) {
+    return { mensajes: [TEXTO_TRANSFERENCIA] };
   }
 
   if (cmd === "estado") {

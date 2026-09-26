@@ -8,4 +8,10 @@ export const BUSINESS = {
   reviewsUrl:
     "https://search.google.com/local/reviews?placeid=ChIJnXY2cpdTVo8Rcp3_7ONQUE4",
   logoPath: "/logo.jpg",
+  /** Cuenta para pagos por transferencia (el bot la manda cuando la piden). */
+  transferencia: {
+    clabe: "722969060234874953",
+    beneficiario: "Burguer Point",
+    institucion: "Mercado Pago W",
+  },
 } as const;

@@ -106,9 +106,14 @@ async function procesar(payload: unknown) {
     if (!msg.text.trim()) {
       // Con una persona atendiendo, el bot no se mete ni para esto.
       if ((await getSession(msg.from)).state === "humano") continue;
+      // Una foto o PDF casi siempre es el comprobante de la transferencia: se
+      // acusa de recibido y el staff lo revisa en la bandeja de WhatsApp.
+      const esComprobante = msg.type === "image" || msg.type === "document";
       await sendText({
         to: msg.from,
-        body: "Por ahora solo entiendo mensajes de texto. Escribe *menu* para ver la carta. 🍔",
+        body: esComprobante
+          ? "📎 ¡Recibimos tu comprobante, gracias! En un momento lo revisamos y confirmamos tu pago."
+          : "Por ahora solo entiendo mensajes de texto. Escribe *menu* para ver la carta. 🍔",
       });
       continue;
     }

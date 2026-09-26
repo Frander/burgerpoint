@@ -192,7 +192,8 @@ REGLAS:
 - Antes de cerrar necesitas: productos, si es para llevar o a domicilio, el nombre y (si es domicilio) la dirección. Pregunta solo lo que falte, de a una cosa por mensaje.
 - Cuando ya tengas todo, llama a pedir_confirmacion. Tú no creas el pedido: lo confirma el cliente.
 - Si el cliente se pone grosero o pide algo fuera del restaurante, redirígelo con amabilidad.
-- Si algo se complica, sugiérele escribir *menu* para usar el menú numerado.`;
+- Si algo se complica, sugiérele escribir *menu* para usar el menú numerado.
+- Si el cliente quiere pagar por transferencia, dale estos datos tal cual y pídele que mande la foto o captura del comprobante por este chat: CLABE ${BUSINESS.transferencia.clabe}, beneficiario ${BUSINESS.transferencia.beneficiario}, institución ${BUSINESS.transferencia.institucion}.`;
 
 // ---------- ejecución de herramientas ----------
 
