@@ -27,6 +27,7 @@ export default function CartDrawer({
   const [type, setType] = useState<OrderType>("delivery");
   const [address, setAddress] = useState("");
   const [notes, setNotes] = useState("");
+  const [coupon, setCoupon] = useState("");
 
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -45,6 +46,7 @@ export default function CartDrawer({
       type,
       address,
       notes,
+      coupon_code: coupon,
       items: items.map((i) => ({
         productId: i.productId,
         quantity: i.quantity,
@@ -252,6 +254,13 @@ export default function CartDrawer({
                       className="w-full rounded-md border border-gray-200 px-3 py-2 text-sm placeholder:text-gray-400 focus:border-gray-900 focus:outline-none focus:ring-1 focus:ring-gray-900"
                     />
                   )}
+
+                  <input
+                    placeholder="Cupón de puntos (opcional)"
+                    value={coupon}
+                    onChange={(e) => setCoupon(e.target.value.toUpperCase())}
+                    className="w-full rounded-md border border-gray-200 px-3 py-2 text-sm uppercase tracking-widest placeholder:tracking-normal placeholder:text-gray-400 focus:border-gray-900 focus:outline-none focus:ring-1 focus:ring-gray-900"
+                  />
 
                   <textarea
                     placeholder="Notas (opcional)"

@@ -77,7 +77,11 @@ export default async function TicketPage({
     order.type === "en_mesa"
       ? `Mesa${mesaName ? ` [${mesaName}]` : ""}`
       : typeMeta.label;
-  const subtotal = Number(order.total) - Number(order.delivery_fee);
+  // El total ya trae el envío sumado y el descuento restado, así que para
+  // llegar al subtotal de comida hay que deshacer las dos cosas.
+  const descuento = Number(order.discount ?? 0);
+  const subtotal =
+    Number(order.total) - Number(order.delivery_fee) + descuento;
   const paid = order.order_payments.reduce((s, p) => s + Number(p.amount), 0);
 
   const itemsBlock = (big: boolean) => (
@@ -187,6 +191,7 @@ export default async function TicketPage({
             <Dashes />
             <div className="text-[13px]">
               <p>Subtotal {formatMoney(subtotal)}</p>
+              {descuento > 0 && <p>Descuento -{formatMoney(descuento)}</p>}
               {Number(order.delivery_fee) > 0 && (
                 <p>Precio de entrega {formatMoney(Number(order.delivery_fee))}</p>
               )}

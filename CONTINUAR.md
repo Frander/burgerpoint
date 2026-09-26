@@ -3,8 +3,91 @@
 Documento para retomar el trabajo en otra sesión. Resume qué está hecho, qué
 falta de tu lado, y los próximos pasos sugeridos.
 
-_Última actualización: 6 sep 2026 (WhatsApp: token permanente y Phone Number
-ID corregido; pantalla de Usuarios; rol repartidor; permisos por rol)_
+_Última actualización: 25 sep 2026 (WhatsApp ya con el número real 997 122 4633;
+recuperar contraseña; reimprimir por el agente; confirmación de domicilios web)_
+
+---
+
+## 🧾 Bitácora — sesión 24–25 sep 2026 (leer primero)
+
+### Hecho y en producción
+
+| Commit | Qué |
+|---|---|
+| `7de9dfe` | Redeploy con el número real de WhatsApp |
+| `8ae96b5` | Bot: el **0** en opciones ("Sin cebolla"…) es "ninguna", ya no reinicia al menú |
+| `3b60d1c` | **Recuperar contraseña**: "¿Olvidaste tu contraseña?" en `/login`, ruta `/auth/confirm`, pantalla `/login/nueva` |
+| `2b32702` | Enlace de recuperación vencido (`?error_code=` en la portada) → `/login` con aviso |
+| `f41836b` | **Reimprimir desde cualquier equipo** vía el agente (Realtime, canal `impresion`) |
+| `88ec963` | **Confirmación por WhatsApp** al cliente de domicilios pedidos por la web |
+
+Todos se subieron **solo con su cambio** (armando el commit sobre la versión de
+`HEAD`), así que lo que tenías sin commitear —ajustes, puntos/cupones, cuenta
+del cliente, reportes de envíos, migraciones 0013–0015, pausa del bot en el
+panel— **sigue local y sin subir**, intacto.
+
+### WhatsApp: número real conectado ✅
+
+| | |
+|---|---|
+| Número | `+52 1 997 122 4633` — CONNECTED, CLOUD_API, calidad GREEN |
+| **Phone Number ID** | **`1396710316849293`** (ya en Vercel prod/preview/dev y `.env.local`) |
+| Cuenta (WABA) | `28850711661200297` "Burguer Point", portafolio **Ticul_Conectado** |
+| PIN de registro | `123456` |
+
+- Cómo se logró: el dueño lo quitó de OlaClick y **eliminó la cuenta en la app
+  WhatsApp Business**; luego por API: `POST /{waba}/phone_numbers` →
+  `request_code` → `verify_code` → `register`. La app quedó suscrita al webhook
+  de esa WABA.
+- Si `register` da `2388001` "registrado en una cuenta de WhatsApp que ya
+  existe": el número sigue vivo en una app del celular. Eliminar la cuenta ahí
+  y, si persiste, borrar y volver a agregar el número en la WABA.
+- Se intentó antes el **997 145 0050** y se abandonó (lo borraron de la WABA).
+- El portafolio **"Burguerpoint"** (`409378743818252`) es dueño de la WABA vieja
+  `372422187633040`; nuestro token **no lo ve**. La sección "Número real del
+  negocio (10 sep)" de abajo queda como historia.
+- Plantillas en la WABA nueva (ver en business.facebook.com → Ticul_Conectado →
+  Administrador de WhatsApp → cuenta `28850711661200297` → Plantillas):
+  `pedido_nuevo_alerta`, `pedido_estado`, `pedido_confirmado` — **las tres en
+  revisión (PENDING)** al cierre de la sesión.
+
+### Confirmación de domicilio web (`88ec963`)
+`notifyOrderConfirmation` en `src/lib/whatsapp/notify.ts`, llamada desde
+`insertOrder` solo si `origin = web` y `type = delivery`. Variables: nombre,
+folio, detalle en una línea (cantidad, producto, opciones, envío; máx. 600
+caracteres) y total. Si el cliente escribió en 24 h va como texto gratis. Una
+vez por pedido (`dedupe_tag = confirmacion`). Nombre de plantilla configurable
+con `WA_TPL_CONFIRMACION`.
+
+### Reimprimir por el agente (`f41836b`)
+`src/components/admin/PrintButton.tsx` manda `reimprimir {reqId, orderId, kind}`
+por broadcast y espera `impreso` 5 s; si no, abre el ticket en el navegador
+(y si el navegador bloquea la ventana, el botón pasa a "🖨 Imprimir aquí").
+Probado con el agente en `--dry-run`: confirmó en 0.8 s.
+
+### ⏳ Pendiente
+1. **Actualizar el agente en la PC de la caja**: copiar el `print-agent/index.js`
+   nuevo (no tocar `config.json`), reiniciar `iniciar-agente.bat` y ver
+   `Reimpresión: SUBSCRIBED`. Sin esto reimprimir sigue usando el navegador.
+2. **Esperar aprobación de las 3 plantillas**; si alguna sale Rechazada, ajustar
+   el texto. Luego probar un domicilio web con tu número.
+3. **`WHATSAPP_ALERT_TO` no existe en Vercel** → no llega la alerta de pedido
+   nuevo. Falta el número del encargado (distinto del 4633).
+4. **`NEXT_PUBLIC_WHATSAPP_PHONE`** en Vercel tiene un valor de hace meses que
+   no se puede leer; ponerlo en `5219971224633` si no lo es.
+5. **Supabase → Authentication → URL Configuration**: Site URL
+   `https://burgerpoint-view.vercel.app` y Redirect URL
+   `https://burgerpoint-view.vercel.app/auth/confirm`. Si los correos de
+   recuperación no llegan: el SMTP por defecto de Supabase solo manda al equipo
+   del proyecto → configurar SMTP propio.
+   Si sigue saliendo `otp_expired` con correos nuevos, el correo está
+   pre-abriendo el enlace: cambiar la plantilla para que lleve a una página con
+   botón "Confirmar".
+6. Cambiar contraseña a mano: **Admin → Usuarios → "Nueva contraseña"**, o en
+   el SQL Editor `update auth.users set encrypted_password =
+   crypt('…', gen_salt('bf')) where email = '…';`.
+7. **Subir lo local** (ajustes, puntos, pausa del bot, etc.): revisar qué
+   depende de las migraciones 0013–0015 y avisar antes de `supabase db push`.
 
 ---
 
@@ -92,6 +175,120 @@ migración**: `sort_order` ya existía en las tres tablas.
 > Ojo: 46 de los 108 grupos y 94 de las 490 opciones tienen `sort_order = 0`,
 > así que dentro de esos productos el orden actual es arbitrario hasta que los
 > arrastres una vez; al soltar se renumeran 0..N.
+
+### Ajustes, repartidor automático, WhatsApp para caja y orden de productos (12 sep 2026)
+
+Cuatro cosas pedidas de corrido. **Necesita `0013_ajustes.sql`** (ya aplicada).
+
+- **Ajustes (`/admin/ajustes`, solo admin)**: pantalla nueva para las
+  preferencias del negocio. La primera es el **repartidor por defecto**. Los
+  ajustes viven en `app_settings` (llave/valor en jsonb) para no migrar la base
+  cada vez que aparezca una preferencia; se leen con `src/lib/settings.ts`, que
+  devuelve el valor por defecto si la tabla todavía no existe.
+- **Repartidor automático**: al mandar un domicilio en camino sin elegir a
+  nadie, `assignCourier` (PDV) le pone el repartidor por defecto. Si no hay
+  ninguno elegido, avisa y no manda el pedido — así ninguno sale sin dueño. En
+  el PDV el selector muestra "Por defecto: Fulano" en vez de "Sin asignar".
+  Elegir a mano en la tarjeta sigue mandando sobre el defecto.
+- **WhatsApp para la cajera**: `cajero` ya entra a `/admin/whatsapp` y puede
+  responder y pausar el bot (`ROLE_SECTIONS` en `src/lib/roles.ts`). Sigue sin
+  ver Reportes, Ajustes ni el resto.
+- **Orden de los productos**: en `/admin/menu` los productos se arrastran con
+  el asa ⠿, igual que las categorías, **agrupados por categoría** (que es como
+  los ve el cliente). Acción `reorderProducts`; reusa `SortableList`, sin
+  migración: `products.sort_order` ya existía.
+
+> Igual que con los grupos de opciones: casi todos los productos tienen
+> `sort_order = 0`, así que dentro de cada categoría el orden es arbitrario
+> hasta que arrastres una vez; al soltar se renumeran 0..N.
+
+### Precio de envío y reporte de envíos del repartidor (12 sep 2026)
+
+**Un solo precio de envío para todo el negocio.** Antes cada canal iba por su
+lado: el bot lo sacaba de `WHATSAPP_DELIVERY_FEE`, la cajera lo tecleaba a mano
+y la web no cobraba nada. Ahora está en **Ajustes → Precio de envío** y lo usan
+los tres. La variable de entorno **ya no se usa** (borrada de `.env.example` y
+de `CONFIGURAR-WHATSAPP.txt`).
+
+- Se aplica en `insertOrder` (`src/lib/order-insert.ts`): si el pedido es a
+  domicilio y nadie pasó un envío, toma el de Ajustes. Así web y bot lo cobran
+  sin repetir el número en cada lado.
+- El PDV sí lo manda siempre: el campo "Precio de entrega" viene lleno con la
+  tarifa y la cajera puede cambiarlo en ese pedido (perdonarlo, subirlo).
+- `getDeliveryFee()` en `src/lib/settings.ts`. Ojo con la RLS: los ajustes solo
+  los lee el staff, pero quien crea un pedido a domicilio puede ser un cliente
+  de la web o el bot, **sin sesión**; por eso `getSetting` lee con la llave de
+  servicio y deja el cliente con sesión de respaldo.
+
+**Reporte de envíos.** Lo que gana el repartidor por cada entrega es el envío
+que se cobró en ese pedido (queda fijo en el historial aunque luego cambie la
+tarifa). Solo cuenta lo entregado, por `closed_at` y en hora de Mérida.
+
+- Repartidor: `/repartidor/reportes` (botón "💵 Mis envíos" en su barra). Ve
+  hoy, esta semana (de lunes a hoy), este mes y el día por día del mes.
+- Admin: `/admin/reportes/envios` (botón en Reportes). Lo mismo más una tabla
+  por repartidor, para saber cuánto pagarle a cada uno. Sus totales de arriba
+  son del negocio e incluyen entregas sin repartidor asignado.
+- Componente compartido: `src/components/reportes/EnviosReport.tsx`; cada rol
+  lo abre dentro de su propia interfaz.
+- Las semanas se comparan como texto (`"2026-09-07" <= "2026-09-12"`) para no
+  pelear con la zona horaria.
+
+### 🔴 Registro público como staff — HUECO CERRADO (12 sep 2026)
+
+Estuvo abierto en producción desde 0001. `profiles.role` nacía en **`cajero`** y
+el disparador `on_auth_user_created` le creaba perfil a **cualquier** usuario
+nuevo de `auth.users`. Como el registro por correo estaba habilitado y la llave
+anon va en el navegador, **cualquiera de internet podía registrarse y quedar de
+cajera**. Comprobado: el usuario recién creado leyó pedidos (nombres, teléfonos
+y direcciones de clientes), conversaciones de WhatsApp y la lista del staff.
+
+`0014_registro_publico.sql` (aplicada): el disparador solo crea perfil si el
+alta viene marcada `staff` en los metadatos, cosa que solo hace
+`/admin/usuarios` con la llave de servicio. Sin perfil, `my_role()` es null y
+la RLS niega todo. Comprobado después del arreglo: 0 pedidos, 0 conversaciones,
+0 perfiles; el menú sí, que es público.
+
+> Si escribes scripts que creen usuarios del staff, pásales
+> `user_metadata: { staff: true }` **y** haz upsert del perfil: con el
+> disparador capado, un `update` sobre un perfil que no existe no hace nada.
+
+Pendiente tuyo: **apagar el registro por correo** en Supabase → Authentication →
+Sign In / Providers. Ya no da permisos, pero evita usuarios basura.
+
+### Clientes, puntos y cupones (12 sep 2026)
+
+Migración `0015_clientes_puntos.sql` (aplicada). Ajustes en **Ajustes →
+Programa de puntos**: pesos por punto (10), puntos por cupón (100) y descuento
+(10%).
+
+- **El cliente es un teléfono con nombre** (`customers`), **no** un usuario de
+  `auth.users`: el staff y los clientes no se mezclan. Quien pide por el bot
+  queda dado de alta solo, sin registrarse.
+- **Los puntos son un libro de movimientos** (`point_moves`), no un contador:
+  se puede auditar de dónde salió cada punto. Un índice único por pedido impide
+  acreditar dos veces, aunque la acción se reintente — probado.
+- Se acreditan cuando el pedido queda **entregado y pagado**, sobre la comida
+  (total menos envío). Enganchado en los tres sitios donde eso puede pasar:
+  cobro y entrega en el PDV, cambio de estado en Pedidos y entrega del
+  repartidor. `awardPointsForOrder` se puede llamar de más sin miedo.
+- **Cupones**: nacen gastando puntos (`redeemCoupon`), vencen a los 60 días y
+  mueren al usarse. Se aplican en la web, el PDV y el bot; el descuento va
+  sobre la comida, nunca sobre el envío.
+- **Acceso del cliente** (`/cuenta`): entra con su teléfono y un código de 6
+  dígitos que llega por el WhatsApp del negocio. Sesión propia con cookie
+  httpOnly (`customer_sessions`), no Supabase Auth. El código se guarda con
+  HMAC y una llave del servidor (`CUSTOMER_AUTH_SECRET`, o la de servicio si no
+  está): con la base robada, los códigos siguen sin poder recuperarse. Máximo 5
+  intentos, vence a los 10 minutos, uno por minuto.
+- **El bot**: `puntos` para ver el saldo, `canjear` para el cupón y
+  `cupon ABC123` para aplicarlo al pedido que está armando.
+
+> ⚠️ **El código por WhatsApp no llega hasta que el número esté conectado.** La
+> pantalla lo dice y el código sigue siendo válido (se puede dictar en el
+> local). Cuando el número esté vivo, conviene registrar en Meta una plantilla
+> de autenticación y ponerla en `WA_TPL_CODIGO`: fuera de la ventana de 24 h el
+> texto libre no se entrega.
 
 ### Productos agotados: se muestran, no se ocultan (29 jul 2026)
 Antes, marcar un producto como agotado lo borraba del menú (parecía que ya no
@@ -192,6 +389,51 @@ Falta (por orden de estorbo):
    negocio (deja de funcionar en la app normal de WhatsApp) y salir de modo
    prueba.
 
+#### Número real del negocio (10 sep 2026) — historia, resuelto el 24 sep (ver bitácora arriba)
+
+Se agregó al bot la cuenta de WhatsApp Business **"Burguer Point"**. Ojo con los
+IDs, que se confunden:
+
+| | |
+|---|---|
+| Cuenta (WABA) | `372422187633040` — dueño "Ticul_Conectado" (`455205288401730`) |
+| Número | `+52 1 997 122 4633` |
+| **Phone Number ID** | **`2930924150505225`** ← este es el que va en Vercel |
+
+Hecho: la app *Burguer Point Chat* quedó suscrita al webhook de esa cuenta.
+
+Bloqueado (Meta lo rechaza, no es el código):
+- **Registrar el número**: "Register endpoint is not available for SMB
+  businesses". El número vive en la app WhatsApp Business (coexistencia) y
+  sigue enlazado a la plataforma anterior (las 71 plantillas de la cuenta son
+  las de OlaClick).
+- **Enviar**: `133010 Account not registered`.
+- **Crear `pedido_nuevo_alerta` y `pedido_estado`** en esa cuenta: "esta cuenta
+  no tiene permiso para administrar plantillas", aunque el usuario del sistema
+  tiene control total.
+
+Ya se desvinculó de OlaClick y sigue igual: el bloqueo es que está dado de
+alta **como número de la app WhatsApp Business**. Se decidió (10 sep) **pasarlo
+solo al bot**, sin coexistencia (esa exige ser "Tech Provider" en Meta:
+verificación del negocio y revisión de la app, semanas). Pasos del dueño:
+1. Respaldar chats y **eliminar la cuenta** en la app WhatsApp Business del
+   celular (Ajustes → Cuenta → Eliminar cuenta).
+2. Si el número sigue listado en la cuenta de Meta, quitarlo de ahí.
+3. developers.facebook.com → *Burguer Point Chat* → WhatsApp → Configuración de
+   la API → **Agregar número** → código por SMS o llamada.
+
+Después (lo hace Claude): registrar con PIN `123456`, cambiar
+`WHATSAPP_PHONE_NUMBER_ID` en Vercel, crear las dos plantillas en la cuenta
+nueva, redesplegar y probar con `scripts/whatsapp-test.mjs --alerta`. Mientras
+tanto **Vercel sigue con el número de prueba** (`1250269604836573`).
+
+**Responder a mano desde el panel** (hecho para cuando el celular ya no tenga
+el número): en `/admin/whatsapp` hay caja de respuesta. Al contestar, el bot se
+pausa en esa conversación (estado `humano` en `wa_sessions`, sin migración) y
+no responde nada, ni a fotos. Se reactiva con **Reactivar bot** o solo, a las
+6 h sin mensajes. Fuera de las 24 h desde el último mensaje del cliente la caja
+se bloquea, porque Meta no deja mandar texto libre.
+
 Diagnóstico rápido en cualquier momento:
 
     node --env-file=.env.local scripts/whatsapp-test.mjs
@@ -234,7 +476,7 @@ son cuentas con acceso real a los datos de producción, no van al repo).
 
 | Correo | Rol | Aterriza en | Ve |
 |--------|-----|-------------|-----|
-| `caja.test@burgerpoint.local` | cajero | `/admin/pdv` | PDV, Pedidos, Caja |
+| `caja.test@burgerpoint.local` | cajero | `/admin/pdv` | PDV, Pedidos, WhatsApp, Caja |
 | `repartidor.test@burgerpoint.local` | repartidor | `/repartidor` | Solo sus entregas |
 
 El dominio `@burgerpoint.local` no recibe correo: no sirve "olvidé mi
@@ -314,7 +556,7 @@ secciones del panel.
 - **`src/lib/roles.ts` es el único archivo que hay que tocar** para dar o quitar
   accesos (`ROLE_SECTIONS`).
   - `admin`: todo.
-  - `cajero`: PDV, Pedidos, Caja.
+  - `cajero`: PDV, Pedidos, WhatsApp, Caja.
   - `cocina`: solo Cocina (KDS).
 - El menú lateral se arma con `navFor(role)`; `/admin` solo la ve admin, a los
   demás `requireSection` los manda a su pantalla (`homeFor`: cajero → `/admin/pdv`,

@@ -18,7 +18,11 @@ export type BotState =
   | "tipo" // para llevar / a domicilio
   | "nombre"
   | "direccion"
-  | "confirmar";
+  | "confirmar"
+  // Una persona del staff contestó desde el panel: el bot se calla. Se levanta
+  // con "Reactivar bot" o solo, cuando pruneSessions borra la sesión tras 6 h
+  // sin mensajes.
+  | "humano";
 
 export interface CartModifier {
   modifier_id: string;
@@ -56,6 +60,8 @@ export interface SessionData {
   type?: OrderType;
   customerName?: string;
   address?: string;
+  /** Cupón de puntos que el cliente aplicó al pedido que está armando. */
+  couponCode?: string;
   /** Últimos turnos de la conversación con la IA (fase 5). */
   history?: { role: "user" | "assistant"; content: string }[];
 }
@@ -105,6 +111,16 @@ export async function clearSession(phone: string): Promise<void> {
   const supabase = createAdminClient();
   if (!supabase) return;
   await supabase.from("wa_sessions").delete().eq("phone", phone);
+}
+
+/**
+ * Pausa o reactiva el bot para un teléfono. Se conserva `data` (el carrito a
+ * medias) para que, al reactivarlo, el cliente no pierda lo que llevaba.
+ */
+export async function setBotPaused(phone: string, paused: boolean): Promise<void> {
+  const sesion = await getSession(phone);
+  if (!paused && sesion.state !== "humano") return;
+  await saveSession(phone, paused ? "humano" : "inicio", sesion.data);
 }
 
 /**

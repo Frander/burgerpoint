@@ -32,6 +32,12 @@ export default function Storefront({
           >
             ←
           </Link>
+          <Link
+            href="/cuenta"
+            className="absolute right-4 top-4 flex items-center gap-1 rounded-full bg-white/90 px-3 py-1.5 text-xs font-semibold shadow-sm transition-colors hover:bg-white"
+          >
+            ⭐ Mis puntos
+          </Link>
         </div>
         <div className="mx-auto w-full max-w-4xl px-4">
           <div className="mt-3 flex items-center gap-3">

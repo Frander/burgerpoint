@@ -19,7 +19,7 @@ function revalidateMenu() {
  * Las políticas RLS ya limitan la escritura al staff autenticado.
  */
 async function applyOrder(
-  table: "categories" | "modifier_groups" | "modifiers",
+  table: "categories" | "products" | "modifier_groups" | "modifiers",
   ids: string[],
 ): Promise<string | null> {
   if (ids.length === 0) return null;
@@ -119,6 +119,18 @@ export async function updateProduct(
   if (typeof patch.name === "string") patch.name = patch.name.trim();
   const { error } = await supabase.from("products").update(patch).eq("id", id);
   if (error) return { ok: false, error: error.message };
+  revalidateMenu();
+  return { ok: true };
+}
+
+/**
+ * Guarda el orden de los productos DENTRO de una categoría (el que ve el
+ * cliente en el menú). Se manda solo esa categoría, así que las demás no se
+ * tocan aunque compartan la columna `sort_order`.
+ */
+export async function reorderProducts(ids: string[]): Promise<ActionResult> {
+  const error = await applyOrder("products", ids);
+  if (error) return { ok: false, error };
   revalidateMenu();
   return { ok: true };
 }

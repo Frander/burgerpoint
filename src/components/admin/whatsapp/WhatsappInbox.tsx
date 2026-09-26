@@ -1,8 +1,9 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
+import { replyToContact, toggleBot } from "@/app/admin/whatsapp/actions";
 import type { WaContact, WaMessage } from "@/lib/types";
 
 const STATUS_LABEL: Record<string, string> = {
@@ -50,20 +51,64 @@ function relativeSince(iso: string | null): string {
   return `hace ${diffD} d`;
 }
 
+const WINDOW_MS = 24 * 60 * 60 * 1000;
+
+/** ¿Se le puede escribir texto libre? Solo dentro de las 24 h de su último mensaje. */
+function windowOpen(contact: WaContact | null): boolean {
+  if (!contact?.last_inbound_at || contact.opted_out) return false;
+  return Date.now() - new Date(contact.last_inbound_at).getTime() < WINDOW_MS;
+}
+
 export default function WhatsappInbox({
   initialContacts,
   initialMessages,
   selectedPhone,
+  botPausedUntil,
 }: {
   initialContacts: WaContact[];
   initialMessages: WaMessage[];
   selectedPhone: string | null;
+  botPausedUntil: string | null;
 }) {
   const router = useRouter();
   const [contacts, setContacts] = useState<WaContact[]>(initialContacts);
   const [messages, setMessages] = useState<WaMessage[]>(initialMessages);
   const [live, setLive] = useState(false);
+  const [draft, setDraft] = useState("");
+  const [error, setError] = useState<string | null>(null);
+  const [pending, startTransition] = useTransition();
   const bottomRef = useRef<HTMLDivElement>(null);
+
+  // Al cambiar de conversación se limpia lo que se estaba escribiendo.
+  const [draftPhone, setDraftPhone] = useState(selectedPhone);
+  if (draftPhone !== selectedPhone) {
+    setDraftPhone(selectedPhone);
+    setDraft("");
+    setError(null);
+  }
+
+  function send() {
+    const text = draft.trim();
+    if (!selectedPhone || !text || pending) return;
+    setError(null);
+    startTransition(async () => {
+      const res = await replyToContact(selectedPhone, text);
+      if (res.ok) setDraft("");
+      else setError(res.error ?? "No se pudo enviar.");
+      // Aunque Meta rechace el envío, el bot ya quedó en pausa: hay que verlo.
+      router.refresh();
+    });
+  }
+
+  function setPaused(paused: boolean) {
+    if (!selectedPhone) return;
+    setError(null);
+    startTransition(async () => {
+      const res = await toggleBot(selectedPhone, paused);
+      if (res.ok) router.refresh();
+      else setError(res.error ?? "No se pudo cambiar el bot.");
+    });
+  }
 
   // El servidor ya trae los mensajes correctos al cambiar ?phone=; solo hay
   // que sincronizar el estado local cuando cambia la selección.
@@ -143,6 +188,8 @@ export default function WhatsappInbox({
     () => contacts.find((c) => c.phone === selectedPhone) ?? null,
     [contacts, selectedPhone],
   );
+  const canWrite = windowOpen(selectedContact);
+  const botPaused = botPausedUntil !== null;
 
   return (
     <div className="flex h-[calc(100vh-4rem)] max-h-[900px] gap-4">
@@ -209,14 +256,40 @@ export default function WhatsappInbox({
 
         {selectedPhone && (
           <>
-            <div className="border-b border-black/10 px-4 py-3 dark:border-white/10">
-              <p className="text-sm font-bold">
-                {selectedContact?.name || formatPhone(selectedPhone)}
-              </p>
-              <p className="text-xs text-black/50 dark:text-white/50">
-                {formatPhone(selectedPhone)}
-                {selectedContact?.opted_out && " · dado de baja (no recibe avisos)"}
-              </p>
+            <div className="flex items-center justify-between gap-3 border-b border-black/10 px-4 py-3 dark:border-white/10">
+              <div className="min-w-0">
+                <p className="truncate text-sm font-bold">
+                  {selectedContact?.name || formatPhone(selectedPhone)}
+                </p>
+                <p className="text-xs text-black/50 dark:text-white/50">
+                  {formatPhone(selectedPhone)}
+                  {selectedContact?.opted_out && " · dado de baja (no recibe avisos)"}
+                </p>
+              </div>
+              <div className="flex shrink-0 items-center gap-2">
+                <span
+                  className={`rounded-full px-2 py-0.5 text-[11px] font-medium ${
+                    botPaused
+                      ? "bg-amber-100 text-amber-800 dark:bg-amber-500/15 dark:text-amber-200"
+                      : "bg-green-100 text-green-800 dark:bg-green-500/15 dark:text-green-300"
+                  }`}
+                  title={
+                    botPaused
+                      ? `Vuelve solo a las ${formatTime(botPausedUntil!)} si nadie escribe`
+                      : undefined
+                  }
+                >
+                  {botPaused ? "Atiendes tú · bot en pausa" : "Bot activo"}
+                </span>
+                <button
+                  type="button"
+                  onClick={() => setPaused(!botPaused)}
+                  disabled={pending}
+                  className="rounded-lg border border-black/15 px-2.5 py-1 text-xs font-medium hover:bg-black/5 disabled:opacity-50 dark:border-white/20 dark:hover:bg-white/10"
+                >
+                  {botPaused ? "Reactivar bot" : "Pausar bot"}
+                </button>
+              </div>
             </div>
 
             <div className="flex-1 space-y-2 overflow-y-auto bg-black/[.015] p-4 dark:bg-white/[.02]">
@@ -250,6 +323,11 @@ export default function WhatsappInbox({
                             Plantilla: {m.template_name}
                           </p>
                         )}
+                        {m.dedupe_tag === "manual" && (
+                          <p className="mb-0.5 text-[10px] font-medium uppercase tracking-wide opacity-60">
+                            Escrito a mano
+                          </p>
+                        )}
                         <p className="whitespace-pre-wrap">{m.body || "(sin texto)"}</p>
                         <p
                           className={`mt-1 text-right text-[10px] ${
@@ -268,6 +346,53 @@ export default function WhatsappInbox({
                 );
               })}
               <div ref={bottomRef} />
+            </div>
+
+            {/* Respuesta a mano */}
+            <div className="border-t border-black/10 p-3 dark:border-white/10">
+              {error && <p className="mb-2 text-xs text-red-600 dark:text-red-400">{error}</p>}
+              {canWrite ? (
+                <form
+                  onSubmit={(e) => {
+                    e.preventDefault();
+                    send();
+                  }}
+                  className="flex items-end gap-2"
+                >
+                  <textarea
+                    value={draft}
+                    onChange={(e) => setDraft(e.target.value)}
+                    onKeyDown={(e) => {
+                      // Enter manda; Shift+Enter hace salto de línea, como en WhatsApp Web.
+                      if (e.key === "Enter" && !e.shiftKey && !e.nativeEvent.isComposing) {
+                        e.preventDefault();
+                        send();
+                      }
+                    }}
+                    rows={2}
+                    maxLength={4096}
+                    placeholder={
+                      botPaused
+                        ? "Escribe tu respuesta…"
+                        : "Escribe tu respuesta… (al enviar, el bot se pausa en este chat)"
+                    }
+                    className="min-h-[2.5rem] flex-1 resize-none rounded-lg border border-black/15 bg-transparent px-3 py-2 text-sm outline-none focus:border-black/40 dark:border-white/20 dark:focus:border-white/50"
+                  />
+                  <button
+                    type="submit"
+                    disabled={pending || !draft.trim()}
+                    className="rounded-lg bg-black px-4 py-2 text-sm font-medium text-white disabled:opacity-40 dark:bg-white dark:text-black"
+                  >
+                    {pending ? "Enviando…" : "Enviar"}
+                  </button>
+                </form>
+              ) : (
+                <p className="text-center text-xs text-black/50 dark:text-white/50">
+                  {selectedContact?.opted_out
+                    ? "Pidió la baja: no se le puede escribir hasta que vuelva a escribir él."
+                    : "Pasaron más de 24 h desde su último mensaje. WhatsApp solo deja contestarle cuando vuelva a escribir."}
+                </p>
+              )}
             </div>
           </>
         )}

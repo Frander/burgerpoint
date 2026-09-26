@@ -11,6 +11,8 @@ import type {
   Product,
 } from "@/lib/types";
 import { isSoldOut } from "@/lib/product";
+import { getDeliveryFee } from "@/lib/settings";
+import { checkCoupon, ensureCustomer, markCouponUsed } from "@/lib/loyalty";
 import { notifyNewOrder, notifyOrderConfirmation } from "@/lib/whatsapp/notify";
 
 export interface OrderModifierInput {
@@ -36,7 +38,13 @@ export interface InsertOrderInput {
   items: OrderLineInput[];
   origin?: OrderOrigin;
   status?: OrderStatus;
+  /**
+   * Envío a cobrar. Si no se pasa, los domicilios toman la tarifa de Ajustes;
+   * el PDV sí lo manda siempre (la cajera puede cambiarlo pedido por pedido).
+   */
   delivery_fee?: number;
+  /** Cupón de puntos a aplicar. Si no sirve, el pedido NO se crea. */
+  coupon_code?: string | null;
   mesa_id?: string | null;
   served_by?: string | null;
 }
@@ -202,9 +210,25 @@ export async function insertOrder(
     return { ok: false, error: "Los productos ya no están disponibles." };
   }
 
-  const deliveryFee = input.delivery_fee ?? 0;
-  const total =
-    lines.reduce((sum, i) => sum + i.unit_price * i.quantity, 0) + deliveryFee;
+  // El envío se cobra solo en domicilio, y por defecto con la tarifa de
+  // Ajustes: así la web, el bot y el PDV cobran lo mismo sin repetir el número.
+  const deliveryFee =
+    input.type === "delivery" ? (input.delivery_fee ?? (await getDeliveryFee())) : 0;
+  const comida = lines.reduce((sum, i) => sum + i.unit_price * i.quantity, 0);
+
+  // El cupón descuenta sobre la comida, nunca sobre el envío: ese dinero es del
+  // repartidor. Si el cupón no sirve se corta aquí, antes de crear nada, para
+  // que el cliente no acabe pagando de más creyendo que aplicó.
+  let discount = 0;
+  let couponId: string | null = null;
+  if (input.coupon_code?.trim()) {
+    const check = await checkCoupon(input.coupon_code, comida);
+    if (!check.ok) return { ok: false, error: check.error };
+    discount = check.discount ?? 0;
+    couponId = check.couponId ?? null;
+  }
+
+  const total = comida + deliveryFee - discount;
 
   const orderId = randomUUID();
   const code = generateOrderCode();
@@ -220,6 +244,8 @@ export async function insertOrder(
     origin: input.origin ?? "web",
     status: input.status ?? "nuevo",
     delivery_fee: deliveryFee,
+    discount,
+    coupon_id: couponId,
     mesa_id: input.mesa_id ?? null,
     served_by: input.served_by ?? null,
   });
@@ -230,6 +256,17 @@ export async function insertOrder(
 
   const linesRes = await insertLines(supabase, orderId, lines);
   if (!linesRes.ok) return { ok: false, error: linesRes.error };
+
+  // El cupón se quema ya con el pedido creado. Si alguien lo usó un instante
+  // antes, el pedido se queda con el descuento: es menos malo que cobrarle de
+  // más a alguien que ya está en la pantalla de "listo".
+  if (couponId) await markCouponUsed(couponId, orderId);
+
+  // Quien pide queda dado de alta para el programa de puntos; los puntos se
+  // acreditan después, al entregarse y pagarse.
+  if (input.customer_phone) {
+    await ensureCustomer(input.customer_phone, input.customer_name);
+  }
 
   // Alerta interna por WhatsApp. Va con `after` para no hacer esperar al
   // cliente por la Graph API, y aislada para que un fallo de Meta no convierta

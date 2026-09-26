@@ -57,14 +57,21 @@ export async function createStaffUser(input: {
     email,
     password: input.password,
     email_confirm: true, // el staff no verifica correo: lo da de alta el jefe
+    // Marca que enciende el disparador que crea el perfil (0014). Sin ella el
+    // usuario nace sin perfil y sin permisos: así quien se registre por su
+    // cuenta desde internet no se convierte en cajero.
+    user_metadata: { staff: true, full_name: nombre },
   });
   if (error) return { ok: false, error: error.message };
 
-  // El trigger handle_new_user ya creó el perfil; aquí solo se completa.
+  // El disparador handle_new_user ya creó el perfil (0014, porque el alta va
+  // marcada como staff); se usa upsert para que el alta no dependa de él.
   const { error: perfilErr } = await admin
     .from("profiles")
-    .update({ role: input.role, full_name: nombre })
-    .eq("id", data.user.id);
+    .upsert(
+      { id: data.user.id, role: input.role, full_name: nombre },
+      { onConflict: "id" },
+    );
   if (perfilErr) {
     // Sin rol el usuario existiría a medias; se deshace el alta.
     await admin.auth.admin.deleteUser(data.user.id);

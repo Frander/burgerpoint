@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import Link from "next/link";
 import { getProfile } from "@/lib/supabase/auth";
 import { isSupabaseConfigured } from "@/lib/supabase/config";
 import { signOut } from "@/app/admin/actions";
@@ -29,14 +30,22 @@ export default async function RepartidorLayout({
             {nombre}
           </p>
         </div>
-        <form action={signOut}>
-          <button
-            type="submit"
-            className="shrink-0 rounded-full border border-black/15 px-3 py-1.5 text-xs text-red-600 dark:border-white/15"
+        <div className="flex shrink-0 items-center gap-2">
+          <Link
+            href="/repartidor/reportes"
+            className="rounded-full border border-black/15 px-3 py-1.5 text-xs font-medium dark:border-white/15"
           >
-            Salir
-          </button>
-        </form>
+            💵 Mis envíos
+          </Link>
+          <form action={signOut}>
+            <button
+              type="submit"
+              className="rounded-full border border-black/15 px-3 py-1.5 text-xs text-red-600 dark:border-white/15"
+            >
+              Salir
+            </button>
+          </form>
+        </div>
       </header>
       <main className="flex-1 px-3 pb-24 pt-3">{children}</main>
     </div>

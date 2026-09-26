@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { after } from "next/server";
 import { sectionClient } from "@/lib/supabase/auth";
 import { notifyOrderStatus } from "@/lib/whatsapp/notify";
+import { awardPointsForOrder } from "@/lib/loyalty";
 import type { OrderStatus } from "@/lib/types";
 
 export async function updateOrderStatus(
@@ -22,6 +23,8 @@ export async function updateOrderStatus(
   // Graph API al mover una tarjeta en cocina.
   after(async () => {
     await notifyOrderStatus(id, status);
+    // Solo acredita si quedó entregado Y pagado; da igual llamarla de más.
+    await awardPointsForOrder(id);
   });
 
   revalidatePath("/admin/pedidos");

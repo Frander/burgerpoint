@@ -178,10 +178,13 @@ PASO 6 - SUBIR LOS SECRETOS A VERCEL
    WHATSAPP_APP_SECRET      el del PASO 2
 
    OPCIONALES:
-   WHATSAPP_DELIVERY_FEE     30   (cobrar envio en el bot)
    WHATSAPP_STATUS_TEMPLATES 1    (avisar tambien a quien
                                   pidio por la web; ESTO
                                   CUESTA ~USD 0.008 c/u)
+
+   El costo de envio del bot ya NO se pone aqui: esta en el
+   panel, en Ajustes -> Precio de envio, junto con el de la
+   web y el PDV.
 
 3. IMPORTANTE: cambiar una variable NO vuelve a desplegar
    solo. Ve a la pestana Deployments > el ultimo deploy >

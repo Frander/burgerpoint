@@ -113,6 +113,9 @@ export interface Order {
   payment_status: PaymentStatus;
   /** Costo de envío incluido en `total` (solo domicilio). */
   delivery_fee: number;
+  /** Descuento del cupón de puntos, ya restado de `total`. */
+  discount: number;
+  coupon_id: string | null;
   mesa_id: string | null;
   /** Nombre de quien tomó el pedido en el PDV. */
   served_by: string | null;

@@ -56,13 +56,21 @@ export default function PdvBoard({
   menu,
   salas,
   couriers,
+  defaultCourierId,
+  deliveryFee,
   initialOrders,
 }: {
   menu: MenuCategory[];
   salas: SalaWithMesas[];
   couriers: Courier[];
+  /** Repartidor que pone el servidor si la caja no elige (Ajustes). */
+  defaultCourierId: string | null;
+  /** Precio de envío configurado en Ajustes. */
+  deliveryFee: number;
   initialOrders: OrderFull[];
 }) {
+  const defaultCourierName =
+    couriers.find((c) => c.id === defaultCourierId)?.name ?? null;
   const [orders, setOrders] = useState<OrderFull[]>(initialOrders);
   const [tab, setTab] = useState<Tab>("mostrador");
   const [live, setLive] = useState(false);
@@ -378,7 +386,11 @@ export default function PdvBoard({
                       }}
                       className="rounded-md border border-black/15 px-2 py-1 text-xs dark:border-white/15 dark:bg-transparent"
                     >
-                      <option value="">Sin asignar</option>
+                      <option value="">
+                        {defaultCourierName
+                          ? `Por defecto: ${defaultCourierName}`
+                          : "Sin asignar"}
+                      </option>
                       {couriers.map((c) => (
                         <option key={c.id} value={c.id}>
                           {c.name}
@@ -470,14 +482,18 @@ export default function PdvBoard({
                         if (order.type === "delivery" && next === "listo") {
                           const courier =
                             courierSel[order.id] ?? order.courier_id ?? "";
-                          if (!courier) {
+                          // Sin elegir a nadie, el servidor pone el repartidor
+                          // por defecto; solo estorba si tampoco hay uno.
+                          if (!courier && !defaultCourierName) {
                             setError(
                               `Elige quién lleva el pedido ${order.code} antes de mandarlo en camino.`,
                             );
                             return;
                           }
                           run(() =>
-                            assignCourier(order.id, courier, { enviar: true }),
+                            assignCourier(order.id, courier || null, {
+                              enviar: true,
+                            }),
                           );
                           return;
                         }
@@ -539,6 +555,7 @@ export default function PdvBoard({
           type={newOrderType}
           menu={menu}
           salas={salas}
+          defaultDeliveryFee={deliveryFee}
           initialMesaId={newOrderMesaId ?? undefined}
           onClose={() => {
             setNewOrderType(null);
@@ -558,6 +575,7 @@ export default function PdvBoard({
           type={appendOrder.type}
           menu={menu}
           salas={salas}
+          defaultDeliveryFee={deliveryFee}
           appendToOrder={{ id: appendOrder.id, code: appendOrder.code }}
           onClose={() => setAppendOrder(null)}
           onCreated={() => {

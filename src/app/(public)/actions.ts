@@ -19,6 +19,8 @@ export interface NewOrderInput {
   type: OrderType;
   address?: string;
   notes?: string;
+  /** Cupón del programa de puntos, si el cliente escribió uno. */
+  coupon_code?: string;
   items: NewOrderItem[];
 }
 
@@ -60,6 +62,7 @@ export async function createOrder(
     type: input.type,
     address: input.address,
     notes: input.notes,
+    coupon_code: input.coupon_code,
     items: input.items,
     origin: "web",
   });

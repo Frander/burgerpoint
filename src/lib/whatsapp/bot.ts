@@ -3,6 +3,9 @@ import { formatMoney } from "@/lib/format";
 import { BUSINESS } from "@/lib/business";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { insertOrder } from "@/lib/order-insert";
+// El envío sale del ajuste del negocio: el mismo que cobran la web y el PDV.
+import { getDeliveryFee } from "@/lib/settings";
+import { checkCoupon, getCustomerSummary, redeemCoupon } from "@/lib/loyalty";
 import { notifyNewOrder } from "@/lib/whatsapp/notify";
 import {
   getBotProduct,
@@ -35,12 +38,6 @@ import type { ModifierGroupWithOptions, OrderStatus, OrderType } from "@/lib/typ
  */
 
 const MAX_CANTIDAD = 50;
-
-/** Costo de envío que aplica el bot a domicilio (el PDV lo sigue poniendo a mano). */
-function deliveryFee(): number {
-  const raw = Number(process.env.WHATSAPP_DELIVERY_FEE ?? "0");
-  return Number.isFinite(raw) && raw > 0 ? raw : 0;
-}
 
 // ---------- utilidades de texto ----------
 
@@ -286,6 +283,7 @@ const AYUDA = `Puedo ayudarte a hacer tu pedido 🍔
 *menu* — ver el menú
 *carrito* — ver tu pedido
 *estado* — cómo va tu último pedido
+*puntos* — tus puntos y cupones
 *cancelar* — empezar de nuevo
 *baja* — no recibir más mensajes`;
 
@@ -310,6 +308,13 @@ export async function handleIncoming(
     };
   }
 
+  // Lo está atendiendo una persona desde el panel: el bot no contesta nada.
+  // Se vuelve a guardar para que la pausa no caduque a media conversación.
+  if (sesion.state === "humano") {
+    await saveSession(phone, "humano", data);
+    return { mensajes: [] };
+  }
+
   if (["ayuda", "help", "?"].includes(cmd)) {
     return { mensajes: [AYUDA] };
   }
@@ -322,6 +327,39 @@ export async function handleIncoming(
       };
     }
     return { mensajes: [textoEstado(pedido.status, pedido.type, pedido.code)] };
+  }
+
+  // ----- programa de puntos -----
+
+  if (cmd === "puntos" || cmd === "mis puntos") {
+    return { mensajes: [await textoPuntos(phone)] };
+  }
+
+  if (cmd === "canjear" || cmd === "cupon" || cmd === "cupón") {
+    const res = await redeemCoupon(phone);
+    if (!res.ok) {
+      return { mensajes: [`${res.error}\n\nEscribe *puntos* para ver cómo vas.`] };
+    }
+    return {
+      mensajes: [
+        `🎁 ¡Listo! Tu cupón de *${res.percent}% de descuento* es:\n\n*${res.code}*\n\nÚsalo en tu próximo pedido: escribe *cupon ${res.code}* antes de confirmarlo.`,
+      ],
+    };
+  }
+
+  // "cupon ABC123": lo guarda para el pedido que está armando.
+  if (cmd.startsWith("cupon ") || cmd.startsWith("cupón ")) {
+    const code = texto.trim().split(/\s+/).slice(1).join("").toUpperCase();
+    const check = await checkCoupon(code, cartTotal(data.cart ?? []));
+    if (!check.ok) return { mensajes: [check.error ?? "Ese cupón no sirve."] };
+
+    data.couponCode = code;
+    await saveSession(phone, sesion.state, data);
+    return {
+      mensajes: [
+        `✅ Cupón *${code}* aplicado: ${check.percent}% menos.\n\n${await resumenFinal(data)}`,
+      ],
+    };
   }
 
   if (cmd === "cancelar") {
@@ -630,7 +668,7 @@ export async function handleIncoming(
       }
 
       await saveSession(phone, "confirmar", data);
-      return { mensajes: [resumenFinal(data)] };
+      return { mensajes: [await resumenFinal(data)] };
     }
 
     case "direccion": {
@@ -643,7 +681,7 @@ export async function handleIncoming(
 
       data.address = direccion;
       await saveSession(phone, "confirmar", data);
-      return { mensajes: [resumenFinal(data)] };
+      return { mensajes: [await resumenFinal(data)] };
     }
 
     case "confirmar": {
@@ -660,7 +698,7 @@ export async function handleIncoming(
       }
 
       if (!afirma) {
-        return { mensajes: [`${resumenFinal(data)}`] };
+        return { mensajes: [await resumenFinal(data)] };
       }
 
       return await crearPedido(phone, data);
@@ -674,10 +712,47 @@ export async function handleIncoming(
   }
 }
 
-function resumenFinal(data: SessionData): string {
+/** Respuesta al comando *puntos*: cuánto lleva y qué puede hacer con ello. */
+async function textoPuntos(phone: string): Promise<string> {
+  const resumen = await getCustomerSummary(phone);
+  if (!resumen) {
+    return "Todavía no tienes puntos. Haz tu primer pedido y empiezas a juntarlos. 🍔";
+  }
+
+  const partes = [
+    `⭐ Tienes *${resumen.points} ${resumen.points === 1 ? "punto" : "puntos"}*.`,
+    "",
+    `Ganas 1 punto por cada ${formatMoney(resumen.config.pesosPorPunto)} de comida, cuando tu pedido se entrega y se paga.`,
+  ];
+
+  if (resumen.faltan === 0) {
+    partes.push(
+      "",
+      `¡Ya puedes cambiarlos por un *${resumen.config.porcentaje}% de descuento*! Escribe *canjear*.`,
+    );
+  } else {
+    partes.push(
+      "",
+      `Te faltan *${resumen.faltan}* para un ${resumen.config.porcentaje}% de descuento.`,
+    );
+  }
+
+  return partes.join("\n");
+}
+
+async function resumenFinal(data: SessionData): Promise<string> {
   const cart = data.cart ?? [];
-  const envio = data.type === "delivery" ? deliveryFee() : 0;
-  const total = cartTotal(cart) + envio;
+  const envio = data.type === "delivery" ? await getDeliveryFee() : 0;
+  const comida = cartTotal(cart);
+
+  // El descuento se recalcula cada vez: si el cupón se usó en otro pedido
+  // mientras tanto, aquí deja de aparecer en vez de prometer de menos.
+  let descuento = 0;
+  if (data.couponCode) {
+    const check = await checkCoupon(data.couponCode, comida);
+    descuento = check.ok ? (check.discount ?? 0) : 0;
+  }
+  const total = comida + envio - descuento;
 
   const partes = [
     cartResumen(cart),
@@ -689,6 +764,9 @@ function resumenFinal(data: SessionData): string {
   if (data.type === "delivery") {
     partes.push(`*Dirección:* ${data.address ?? "-"}`);
     if (envio > 0) partes.push(`*Envío:* ${formatMoney(envio)}`);
+  }
+  if (descuento > 0) {
+    partes.push(`*Cupón ${data.couponCode}:* -${formatMoney(descuento)}`);
   }
 
   partes.push("", `*TOTAL: ${formatMoney(total)}*`, "", "*1* ✅ Confirmar pedido\n*2* ✏️ Cambiar algo");
@@ -716,7 +794,8 @@ async function crearPedido(phone: string, data: SessionData): Promise<BotReply> 
     notes: null,
     origin: "whatsapp",
     status: "nuevo",
-    delivery_fee: data.type === "delivery" ? deliveryFee() : 0,
+    delivery_fee: data.type === "delivery" ? await getDeliveryFee() : 0,
+    coupon_code: data.couponCode ?? null,
     items: cart.map((l) => ({
       productId: l.productId,
       quantity: l.quantity,

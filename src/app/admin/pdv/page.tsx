@@ -3,6 +3,7 @@ import { requireSection } from "@/lib/supabase/auth";
 import { isSupabaseConfigured } from "@/lib/supabase/config";
 import { getMenu } from "@/lib/menu";
 import { getCouriers } from "@/lib/couriers";
+import { getDefaultCourierId, getDeliveryFee } from "@/lib/settings";
 import type { OrderFull, SalaWithMesas } from "@/lib/types";
 import PdvBoard from "@/components/admin/pdv/PdvBoard";
 
@@ -22,20 +23,29 @@ export default async function PdvPage() {
   }
 
   const supabase = await createClient();
-  const [menu, couriers, { data: orders }, { data: salas }] = await Promise.all([
-    getMenu(),
-    getCouriers(),
-    supabase
-      .from("orders")
-      .select("*, order_items(*, order_item_modifiers(*)), order_payments(*)")
-      .in("status", ["nuevo", "en_cocina", "listo"])
-      .order("created_at", { ascending: true }),
-    supabase
-      .from("salas")
-      .select("*, mesas(*)")
-      .eq("active", true)
-      .order("sort_order"),
-  ]);
+  const [
+    menu,
+    couriers,
+    defaultCourierId,
+    deliveryFee,
+    { data: orders },
+    { data: salas },
+  ] = await Promise.all([
+      getMenu(),
+      getCouriers(),
+      getDefaultCourierId(),
+      getDeliveryFee(),
+      supabase
+        .from("orders")
+        .select("*, order_items(*, order_item_modifiers(*)), order_payments(*)")
+        .in("status", ["nuevo", "en_cocina", "listo"])
+        .order("created_at", { ascending: true }),
+      supabase
+        .from("salas")
+        .select("*, mesas(*)")
+        .eq("active", true)
+        .order("sort_order"),
+    ]);
 
   const salasOrdenadas = ((salas ?? []) as SalaWithMesas[]).map((s) => ({
     ...s,
@@ -49,6 +59,8 @@ export default async function PdvPage() {
       menu={menu}
       salas={salasOrdenadas}
       couriers={couriers}
+      defaultCourierId={defaultCourierId}
+      deliveryFee={deliveryFee}
       initialOrders={(orders ?? []) as OrderFull[]}
     />
   );

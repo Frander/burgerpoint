@@ -16,6 +16,7 @@ export type AdminSection =
   | "caja"
   | "reportes"
   | "usuarios"
+  | "ajustes"
   | "entregas";
 
 export const SECTIONS: {
@@ -37,6 +38,7 @@ export const SECTIONS: {
   { id: "caja", href: "/admin/caja", label: "Caja", desc: "Apertura, arqueo y cierre" },
   { id: "reportes", href: "/admin/reportes", label: "Reportes", desc: "Ventas y productos top" },
   { id: "usuarios", href: "/admin/usuarios", label: "Usuarios", desc: "Altas del staff y sus roles" },
+  { id: "ajustes", href: "/admin/ajustes", label: "Ajustes", desc: "Preferencias del negocio" },
   {
     id: "entregas",
     href: "/repartidor",
@@ -52,6 +54,7 @@ export const SECTIONS: {
  *
  * - `admin`: todo.
  * - `cajero`: su trabajo es levantar pedidos, cobrarlos y cuadrar el turno.
+ *   Lleva también el WhatsApp: es quien contesta cuando el cliente escribe.
  *   No ve reportes, ni edita el menú, ni toca el inventario.
  * - `cocina`: solo el KDS. No ve dinero ni catálogo.
  * - `repartidor`: solo su pantalla de entregas, y ahí solo los pedidos que
@@ -59,7 +62,7 @@ export const SECTIONS: {
  */
 export const ROLE_SECTIONS: Record<StaffRole, AdminSection[]> = {
   admin: SECTIONS.map((s) => s.id),
-  cajero: ["pdv", "pedidos", "caja"],
+  cajero: ["pdv", "pedidos", "whatsapp", "caja"],
   cocina: ["cocina"],
   repartidor: ["entregas"],
 };

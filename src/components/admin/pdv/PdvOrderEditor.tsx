@@ -35,10 +35,13 @@ export default function PdvOrderEditor({
   onCreated,
   appendToOrder,
   initialMesaId,
+  defaultDeliveryFee,
 }: {
   type: OrderType;
   menu: MenuCategory[];
   salas: SalaWithMesas[];
+  /** Tarifa de Ajustes con la que se llena el precio de entrega. */
+  defaultDeliveryFee: number;
   onClose: () => void;
   onCreated: () => void;
   /** Si se pasa, agrega productos a este pedido en vez de crear uno nuevo. */
@@ -53,9 +56,13 @@ export default function PdvOrderEditor({
   const [customerName, setCustomerName] = useState("");
   const [customerPhone, setCustomerPhone] = useState("");
   const [address, setAddress] = useState("");
-  const [deliveryFee, setDeliveryFee] = useState("");
+  // Viene puesto con la tarifa del negocio; se puede cambiar en este pedido.
+  const [deliveryFee, setDeliveryFee] = useState(
+    defaultDeliveryFee > 0 ? String(defaultDeliveryFee) : "",
+  );
   const [mesaId, setMesaId] = useState(initialMesaId ?? "");
   const [notes, setNotes] = useState("");
+  const [coupon, setCoupon] = useState("");
   const [optionsFor, setOptionsFor] = useState<ProductWithModifiers | null>(null);
   const [loadingOptions, setLoadingOptions] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -161,6 +168,7 @@ export default function PdvOrderEditor({
         address,
         notes,
         delivery_fee: fee,
+        coupon_code: coupon,
         mesa_id: mesaId || undefined,
       });
       if (!res.ok) setError(res.error ?? "Error al crear el pedido.");
@@ -366,12 +374,20 @@ export default function PdvOrderEditor({
               </>
             )}
             {!appendToOrder && (
-              <input
-                value={notes}
-                onChange={(e) => setNotes(e.target.value)}
-                placeholder="Nota del pedido (opcional)"
-                className="w-full rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-sm focus:border-gray-900 focus:bg-white focus:outline-none"
-              />
+              <>
+                <input
+                  value={notes}
+                  onChange={(e) => setNotes(e.target.value)}
+                  placeholder="Nota del pedido (opcional)"
+                  className="w-full rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-sm focus:border-gray-900 focus:bg-white focus:outline-none"
+                />
+                <input
+                  value={coupon}
+                  onChange={(e) => setCoupon(e.target.value.toUpperCase())}
+                  placeholder="Cupón de puntos (opcional)"
+                  className="w-full rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-sm uppercase tracking-widest placeholder:tracking-normal focus:border-gray-900 focus:bg-white focus:outline-none"
+                />
+              </>
             )}
 
             {error && <p className="text-sm text-red-600">{error}</p>}

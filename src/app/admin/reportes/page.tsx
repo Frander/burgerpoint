@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import { requireSection } from "@/lib/supabase/auth";
 import { isSupabaseConfigured } from "@/lib/supabase/config";
@@ -128,11 +129,19 @@ export default async function ReportesPage() {
 
   return (
     <div className="max-w-3xl space-y-8">
-      <div>
-        <h1 className="text-2xl font-bold">Reportes</h1>
-        <p className="mt-1 text-sm text-black/60 dark:text-white/60">
-          Ventas (pedidos no cancelados) de los últimos 30 días.
-        </p>
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <h1 className="text-2xl font-bold">Reportes</h1>
+          <p className="mt-1 text-sm text-black/60 dark:text-white/60">
+            Ventas (pedidos no cancelados) de los últimos 30 días.
+          </p>
+        </div>
+        <Link
+          href="/admin/reportes/envios"
+          className="rounded-full border border-black/15 px-3 py-1.5 text-sm font-medium dark:border-white/15"
+        >
+          🛵 Envíos por repartidor
+        </Link>
       </div>
 
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">

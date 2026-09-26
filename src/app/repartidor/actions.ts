@@ -5,6 +5,7 @@ import { after } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { assertSection } from "@/lib/supabase/auth";
 import { notifyOrderStatus } from "@/lib/whatsapp/notify";
+import { awardPointsForOrder } from "@/lib/loyalty";
 
 interface Result {
   ok: boolean;
@@ -49,6 +50,7 @@ export async function markDelivered(orderId: string): Promise<Result> {
 
   after(async () => {
     await notifyOrderStatus(orderId, "entregado");
+    await awardPointsForOrder(orderId);
   });
 
   revalidatePath("/repartidor");

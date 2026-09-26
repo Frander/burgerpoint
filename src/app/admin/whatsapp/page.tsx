@@ -6,6 +6,13 @@ import WhatsappInbox from "@/components/admin/whatsapp/WhatsappInbox";
 
 export const dynamic = "force-dynamic";
 
+/** La pausa del bot vence a las 6 h sin mensajes (wa_prune_sessions, 0009). */
+function pausedUntil(sesion: { state: string; updated_at: string } | null): string | null {
+  if (sesion?.state !== "humano") return null;
+  const until = new Date(sesion.updated_at).getTime() + 6 * 60 * 60 * 1000;
+  return until > Date.now() ? new Date(until).toISOString() : null;
+}
+
 export default async function WhatsappPage({
   searchParams,
 }: {
@@ -33,14 +40,24 @@ export default async function WhatsappPage({
     .limit(200);
 
   let messages: WaMessage[] = [];
+  // Hasta cuándo sigue callado el bot en esta conversación (null = activo).
+  let botPausedUntil: string | null = null;
   if (selectedPhone) {
-    const { data } = await supabase
-      .from("wa_messages")
-      .select("*")
-      .eq("phone", selectedPhone)
-      .order("created_at", { ascending: true })
-      .limit(300);
+    const [{ data }, { data: sesion }] = await Promise.all([
+      supabase
+        .from("wa_messages")
+        .select("*")
+        .eq("phone", selectedPhone)
+        .order("created_at", { ascending: true })
+        .limit(300),
+      supabase
+        .from("wa_sessions")
+        .select("state, updated_at")
+        .eq("phone", selectedPhone)
+        .maybeSingle(),
+    ]);
     messages = (data ?? []) as WaMessage[];
+    botPausedUntil = pausedUntil(sesion as { state: string; updated_at: string } | null);
   }
 
   return (
@@ -48,6 +65,7 @@ export default async function WhatsappPage({
       initialContacts={(contacts ?? []) as WaContact[]}
       initialMessages={messages}
       selectedPhone={selectedPhone ?? null}
+      botPausedUntil={botPausedUntil}
     />
   );
 }

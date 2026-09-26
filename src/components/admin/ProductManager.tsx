@@ -8,8 +8,10 @@ import {
   createProduct,
   updateProduct,
   deleteProduct,
+  reorderProducts,
   type ActionResult,
 } from "@/app/admin/menu/actions";
+import SortableList from "@/components/admin/SortableList";
 import { formatMoney } from "@/lib/format";
 import { uploadProductImage } from "@/lib/upload";
 import type { Category, Product } from "@/lib/types";
@@ -109,9 +111,27 @@ export default function ProductManager({
     });
   }
 
+  // Un grupo por categoría, en el orden de las categorías; al final los que se
+  // quedaron sin ninguna (se ven en el panel, pero no en el menú público).
+  const grupos = [
+    ...categories.map((c) => ({
+      id: c.id,
+      name: c.name,
+      products: products.filter((p) => p.category_id === c.id),
+    })),
+    {
+      id: "sin-categoria",
+      name: "Sin categoría",
+      products: products.filter((p) => !p.category_id),
+    },
+  ].filter((g) => g.products.length > 0);
+
   return (
     <section>
-      <h2 className="mb-3 text-lg font-semibold">Productos</h2>
+      <h2 className="mb-1 text-lg font-semibold">Productos</h2>
+      <p className="mb-3 text-sm text-black/60 dark:text-white/60">
+        Arrastra ⠿ para cambiar el orden dentro de su categoría.
+      </p>
 
       {/* Alta */}
       <div className="mb-6 space-y-2 rounded-lg border border-black/10 p-4 dark:border-white/10">
@@ -181,28 +201,41 @@ export default function ProductManager({
 
       {error && <p className="mb-3 text-sm text-red-600">{error}</p>}
 
-      {/* Lista */}
-      <div className="space-y-2">
-        {products.length === 0 && (
-          <p className="text-sm text-black/50 dark:text-white/50">
-            Aún no hay productos.
-          </p>
-        )}
-        {products.map((p) => (
-          <ProductRow
-            key={p.id}
-            product={p}
-            categories={categories}
-            disabled={isPending}
-            onSave={(fields) => run(() => updateProduct(p.id, fields))}
-            onToggle={() =>
-              run(() => updateProduct(p.id, { available: !p.available }))
-            }
-            onDelete={() => {
-              if (confirm(`¿Eliminar "${p.name}"?`))
-                run(() => deleteProduct(p.id));
-            }}
-          />
+      {/* Lista, agrupada por categoría: el orden solo tiene sentido dentro de
+          una, que es como los ve el cliente en el menú. */}
+      {products.length === 0 && (
+        <p className="text-sm text-black/50 dark:text-white/50">
+          Aún no hay productos.
+        </p>
+      )}
+      <div className="space-y-6">
+        {grupos.map((grupo) => (
+          <div key={grupo.id}>
+            <h3 className="mb-2 text-sm font-semibold text-black/60 dark:text-white/60">
+              {grupo.name}
+            </h3>
+            <SortableList
+              items={grupo.products}
+              disabled={isPending}
+              onReorder={(ids) => run(() => reorderProducts(ids))}
+              renderItem={(p, handle) => (
+                <ProductRow
+                  product={p}
+                  categories={categories}
+                  handle={handle}
+                  disabled={isPending}
+                  onSave={(fields) => run(() => updateProduct(p.id, fields))}
+                  onToggle={() =>
+                    run(() => updateProduct(p.id, { available: !p.available }))
+                  }
+                  onDelete={() => {
+                    if (confirm(`¿Eliminar "${p.name}"?`))
+                      run(() => deleteProduct(p.id));
+                  }}
+                />
+              )}
+            />
+          </div>
         ))}
       </div>
     </section>
@@ -212,6 +245,7 @@ export default function ProductManager({
 function ProductRow({
   product,
   categories,
+  handle,
   disabled,
   onSave,
   onToggle,
@@ -219,6 +253,8 @@ function ProductRow({
 }: {
   product: Product;
   categories: Category[];
+  /** Asa de arrastre que da SortableList. */
+  handle: React.ReactNode;
   disabled: boolean;
   onSave: (fields: {
     name: string;
@@ -307,7 +343,8 @@ function ProductRow({
   }
 
   return (
-    <div className="flex items-center gap-3 rounded-lg border border-black/10 p-3 dark:border-white/10">
+    <div className="flex items-center gap-3 rounded-lg border border-black/10 bg-white p-3 dark:border-white/10 dark:bg-black">
+      {handle}
       {product.image_url ? (
         <Image
           src={product.image_url}

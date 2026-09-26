@@ -162,6 +162,49 @@ export async function notifyOrderStatus(
   }
 }
 
+/**
+ * Manda el código de acceso del programa de puntos.
+ *
+ * Un código es de esos mensajes que el cliente NO pidió por chat, así que casi
+ * siempre cae fuera de la ventana de 24 h y hay que gastar plantilla. Se
+ * intenta primero la plantilla de autenticación (`WA_TPL_CODIGO`) y, si no está
+ * configurada o el cliente escribió hace poco, se manda como texto.
+ *
+ * Devuelve false cuando no salió, para que la pantalla lo diga en vez de dejar
+ * al cliente esperando un mensaje que nunca llega.
+ */
+export async function sendAccessCode(
+  rawPhone: string,
+  code: string,
+): Promise<boolean> {
+  if (!isWhatsappConfigured()) return false;
+
+  const phone = normalizePhone(rawPhone);
+  if (!phone) return false;
+
+  const plantilla = process.env.WA_TPL_CODIGO;
+
+  try {
+    if (plantilla && !(await hasOpenWindow(phone))) {
+      const res = await sendTemplate({
+        to: phone,
+        template: plantilla,
+        variables: [code],
+      });
+      return res.ok;
+    }
+
+    const res = await sendText({
+      to: phone,
+      body: `Tu código de Burger Point es *${code}*. Vence en 10 minutos. Si no lo pediste, ignora este mensaje.`,
+    });
+    return res.ok;
+  } catch (err) {
+    console.error("[whatsapp] código de acceso:", (err as Error).message);
+    return false;
+  }
+}
+
 /** Tope del detalle en la plantilla: Meta corta el cuerpo en 1024 caracteres. */
 const DETALLE_MAX = 600;
 

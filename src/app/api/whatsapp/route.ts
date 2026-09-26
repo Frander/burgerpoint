@@ -11,7 +11,7 @@ import {
   verifySignature,
 } from "@/lib/whatsapp/webhook";
 import { alertaPedidoBot, handleIncoming } from "@/lib/whatsapp/bot";
-import { pruneSessions, touchContact } from "@/lib/whatsapp/session";
+import { getSession, pruneSessions, touchContact } from "@/lib/whatsapp/session";
 
 /**
  * Webhook de WhatsApp (Cloud API de Meta).
@@ -104,6 +104,8 @@ async function procesar(payload: unknown) {
     await touchContact(msg.from, msg.profileName);
 
     if (!msg.text.trim()) {
+      // Con una persona atendiendo, el bot no se mete ni para esto.
+      if ((await getSession(msg.from)).state === "humano") continue;
       await sendText({
         to: msg.from,
         body: "Por ahora solo entiendo mensajes de texto. Escribe *menu* para ver la carta. 🍔",

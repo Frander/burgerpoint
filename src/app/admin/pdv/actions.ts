@@ -6,6 +6,8 @@ import { createClient } from "@/lib/supabase/server";
 import { assertSection } from "@/lib/supabase/auth";
 import { notifyOrderStatus } from "@/lib/whatsapp/notify";
 import { getProduct } from "@/lib/menu";
+import { getDefaultCourierId } from "@/lib/settings";
+import { awardPointsForOrder } from "@/lib/loyalty";
 import {
   insertLines,
   insertOrder,
@@ -33,6 +35,8 @@ export interface PdvOrderInput {
   address?: string;
   notes?: string;
   delivery_fee?: number;
+  /** Cupón de puntos que trae el cliente. */
+  coupon_code?: string;
   mesa_id?: string;
 }
 
@@ -86,6 +90,7 @@ export async function createPdvOrder(
     origin: "pdv",
     status: "en_cocina",
     delivery_fee: input.type === "delivery" ? (input.delivery_fee ?? 0) : 0,
+    coupon_code: input.coupon_code,
     mesa_id: input.type === "en_mesa" ? input.mesa_id : null,
     served_by: profile.full_name || profile.email,
   });
@@ -169,6 +174,11 @@ export async function registerPayment(
   const { error } = await supabase.from("order_payments").insert(row);
   if (error) return { ok: false, error: error.message };
 
+  // Puede que este pago sea lo último que faltaba para dar puntos.
+  after(async () => {
+    await awardPointsForOrder(orderId);
+  });
+
   revalidatePdv();
   return { ok: true, orderId };
 }
@@ -184,6 +194,7 @@ export async function finalizeOrder(orderId: string): Promise<PdvActionResult> {
   if (error) return { ok: false, error: error.message };
   after(async () => {
     await notifyOrderStatus(orderId, "entregado");
+    await awardPointsForOrder(orderId);
   });
   revalidatePdv();
   return { ok: true, orderId };
@@ -244,13 +255,23 @@ export async function assignCourier(
   if (order.status === "entregado" || order.status === "cancelado") {
     return { ok: false, error: "Ese pedido ya está cerrado." };
   }
-  if (options.enviar && !courierId) {
-    return { ok: false, error: "Elige quién lo lleva." };
+  // Si la caja no eligió a nadie, entra el repartidor por defecto (Ajustes).
+  // Así el pedido nunca sale en camino sin dueño, que es como se pierde.
+  let courier = courierId;
+  if (options.enviar && !courier) {
+    courier = await getDefaultCourierId();
+    if (!courier) {
+      return {
+        ok: false,
+        error:
+          "Elige quién lo lleva, o deja uno por defecto en Ajustes → Repartidor por defecto.",
+      };
+    }
   }
 
   const patch: Record<string, unknown> = {
-    courier_id: courierId,
-    assigned_at: courierId ? new Date().toISOString() : null,
+    courier_id: courier,
+    assigned_at: courier ? new Date().toISOString() : null,
   };
   if (options.enviar) patch.status = "listo";
 
