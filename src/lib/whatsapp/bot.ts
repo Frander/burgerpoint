@@ -271,6 +271,53 @@ async function ultimoPedido(phone: string) {
   } | null;
 }
 
+/**
+ * Al terminar un pedido en la web, el sitio abre WhatsApp con el resumen ya
+ * escrito ("*Nuevo pedido — …* Folio: 260927-1234 …") y el cliente lo manda.
+ * Ese pedido YA existe: el bot solo debe acusarlo, nunca armar otro con él.
+ */
+const FOLIO_RE = /folio:?\s*\*?\s*(\d{6}-\d{4})/i;
+
+async function pedidoPorFolio(code: string) {
+  const supabase = createAdminClient();
+  if (!supabase) return null;
+  const { data } = await supabase
+    .from("orders")
+    .select("code, status, type, total, customer_name")
+    .eq("code", code)
+    .maybeSingle();
+  return data as {
+    code: string;
+    status: OrderStatus;
+    type: OrderType;
+    total: number;
+    customer_name: string;
+  } | null;
+}
+
+/**
+ * Pedidos en curso de ese teléfono (últimas 12 h), para que la IA sepa que el
+ * cliente ya pidió y no le arme uno repetido. Misma búsqueda que "estado".
+ */
+async function pedidosActivos(phone: string): Promise<string[]> {
+  const supabase = createAdminClient();
+  if (!supabase) return [];
+  const local = phone.slice(-10);
+  const desde = new Date(Date.now() - 12 * 60 * 60 * 1000).toISOString();
+  const { data } = await supabase
+    .from("orders")
+    .select("code, status, type, total")
+    .or(`customer_phone.eq.${phone},customer_phone.ilike.%${local}%`)
+    .not("status", "in", "(entregado,cancelado)")
+    .gte("created_at", desde)
+    .order("created_at", { ascending: false })
+    .limit(3);
+  return ((data ?? []) as { code: string; status: OrderStatus; type: OrderType; total: number }[]).map(
+    (o) =>
+      `${o.code} (${ORDER_TYPE_META[o.type]?.label ?? o.type}, ${orderStatusLabel(o.status, o.type)}, ${formatMoney(Number(o.total))})`,
+  );
+}
+
 // ---------- máquina de estados ----------
 
 export interface BotReply {
@@ -331,6 +378,32 @@ export async function handleIncoming(
   if (sesion.state === "humano") {
     await saveSession(phone, "humano", pushHistory(data, "user", texto));
     return { mensajes: [] };
+  }
+
+  // Resumen de un pedido hecho en la web: se acusa y ya. Si trae el folio de
+  // un pedido real, no se toca el carrito ni se crea nada.
+  const folio = texto.match(FOLIO_RE)?.[1];
+  if (folio) {
+    const pedido = await pedidoPorFolio(folio);
+    if (pedido) {
+      const nombre = pedido.customer_name.trim().split(/\s+/)[0];
+      // "Te avisamos…" solo mientras falte algo por avisar.
+      const enCurso = pedido.status === "nuevo" || pedido.status === "en_cocina";
+      const aviso = enCurso
+        ? `Te avisamos por aquí ${
+            pedido.type === "delivery" ? "cuando vaya en camino 🛵" : "cuando esté listo para recoger"
+          }. `
+        : "";
+      const respuesta =
+        `✅ ¡Gracias${nombre ? ` ${nombre}` : ""}! Ya tenemos tu pedido *${pedido.code}* ` +
+        `por *${formatMoney(Number(pedido.total))}*.\n\n${textoEstado(pedido.status, pedido.type, pedido.code)}\n\n` +
+        `${aviso}Si necesitas algo más, escríbenos.`;
+      // Queda en el historial para que la IA, en lo que siga, sepa que ya pidió.
+      let nueva = pushHistory({}, "user", `(Mandó el resumen de su pedido web ${pedido.code})`);
+      nueva = pushHistory(nueva, "assistant", respuesta);
+      await saveSession(phone, "inicio", nueva);
+      return { mensajes: [respuesta] };
+    }
   }
 
   if (["ayuda", "help", "?"].includes(cmd)) {
@@ -415,7 +488,7 @@ export async function handleIncoming(
   // Con IA encendida, todo lo que no sea un paso numerado en curso lo atiende
   // el modelo. Si falla, sigue de largo al menú numerado de siempre.
   if (isAiEnabled() && !pideMenu && (sesion.state === "inicio" || sesion.state === "ia")) {
-    const respuesta = await handleWithAI(texto, data, perfilNombre);
+    const respuesta = await handleWithAI(texto, data, perfilNombre, await pedidosActivos(phone));
     if (respuesta) {
       await saveSession(phone, respuesta.state, respuesta.data);
       return { mensajes: respuesta.mensajes };

@@ -193,6 +193,7 @@ REGLAS:
 - Cuando ya tengas todo, llama a pedir_confirmacion. Tú no creas el pedido: lo confirma el cliente.
 - Si el cliente se pone grosero o pide algo fuera del restaurante, redirígelo con amabilidad.
 - Si algo se complica, sugiérele escribir *menu* para usar el menú numerado.
+- Si el cliente pega o reenvía el resumen de un pedido que ya hizo (trae "Folio"), ese pedido ya existe: no lo vuelvas a pedir ni llames a pedir_confirmacion con él.
 - Si el cliente quiere pagar por transferencia, dale estos datos tal cual y pídele que mande la foto o captura del comprobante por este chat: CLABE ${BUSINESS.transferencia.clabe}, beneficiario ${BUSINESS.transferencia.beneficiario}, institución ${BUSINESS.transferencia.institucion}.`;
 
 // ---------- ejecución de herramientas ----------
@@ -459,6 +460,8 @@ export async function handleWithAI(
   texto: string,
   data: SessionData,
   perfilNombre?: string | null,
+  /** Pedidos en curso del cliente ("260927-1234 (A domicilio, En cocina, MXN 95.00)"). */
+  pedidosEnCurso: string[] = [],
 ): Promise<AiResult | null> {
   const historial = (data.history ?? []).slice(-MAX_HISTORIAL);
 
@@ -470,6 +473,13 @@ export async function handleWithAI(
   if (data.type) contexto.push(`Tipo de entrega ya elegido: ${data.type}.`);
   if (data.customerName) contexto.push(`Nombre ya dado: ${data.customerName}.`);
   if (data.address) contexto.push(`Dirección ya dada: ${data.address}.`);
+  if (pedidosEnCurso.length > 0) {
+    contexto.push(
+      `El cliente YA TIENE pedido(s) en curso: ${pedidosEnCurso.join("; ")}. ` +
+        "Si habla de ese pedido (lo reenvía, pregunta cómo va, pide que le avisen), contéstale sobre él y NO armes uno nuevo. " +
+        "Solo arma otro pedido si pide claramente algo adicional.",
+    );
+  }
 
   const mensajes: ChatMessage[] = [
     { role: "system", content: SYSTEM + (contexto.length > 0 ? `\n\nESTADO:\n${contexto.join("\n")}` : "") },
