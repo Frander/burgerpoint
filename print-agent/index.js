@@ -120,6 +120,12 @@ async function output(buffer, order, kind) {
   }
 }
 
+// Un error suelto (red, impresora) no debe tumbar el servicio: se anota y se
+// sigue. Si aun así se cae, iniciar-agente.bat lo vuelve a levantar.
+process.on("unhandledRejection", (err) => {
+  console.error("⚠️  Error no controlado:", err?.message ?? err);
+});
+
 // ---------- Supabase ----------
 const { supabaseUrl, supabaseAnonKey, email, password } = config;
 if (!supabaseUrl || !supabaseAnonKey || !email || !password) {
