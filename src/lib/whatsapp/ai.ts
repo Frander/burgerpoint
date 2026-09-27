@@ -5,7 +5,9 @@ import {
   getBotProduct,
   listCategories,
   listProducts,
+  menuSnapshot,
   searchProducts,
+  type MenuSnapshot,
 } from "@/lib/whatsapp/catalog";
 import type { BotState, CartLine, SessionData } from "@/lib/whatsapp/session";
 import type { ModifierGroupWithOptions } from "@/lib/types";
@@ -186,7 +188,7 @@ const SYSTEM = `Eres el mesero virtual de ${BUSINESS.name}, una hamburguesería 
 REGLAS:
 - Español mexicano, tono amable y breve. Máximo 4 o 5 líneas por mensaje.
 - WhatsApp usa *un asterisco* para negritas. Nunca uses markdown de otro tipo.
-- NUNCA inventes productos, precios ni promociones: todo sale de las herramientas.
+- NUNCA inventes productos, precios ni promociones. Solo existe lo que está en MENÚ VIGENTE (abajo), con esos nombres y precios exactos. Si piden algo que no está, dilo y ofrece lo que sí hay.
 - Si el producto tiene opciones obligatorias, pregúntaselas al cliente antes de agregarlo.
 - No prometas tiempos de entrega ni descuentos.
 - Antes de cerrar necesitas: productos, si es para llevar o a domicilio, el nombre y (si es domicilio) la dirección. Pregunta solo lo que falte, de a una cosa por mensaje.
@@ -452,6 +454,59 @@ async function llamar(mensajes: ChatMessage[]): Promise<ChatMessage | null> {
   }
 }
 
+/** "BP  Clásico" y "bp clasico" son lo mismo: solo letras y números, sin acentos. */
+function clave(texto: string): string {
+  return texto
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[^a-z0-9]/g, "");
+}
+
+/**
+ * Renglones de resumen que llevan precio pero no son productos. Se compara
+ * contra `clave()`, que ya quitó los espacios ("a domicilio" → "adomicilio").
+ */
+const NO_PRODUCTO =
+  /^(sub)?total|envio|descuento|costo|precio|pago|cupon|adomicilio|parallevar|pedido|llevas|vaen|vanen|quedaen/;
+
+/**
+ * Nombres que la IA puso con precio ("• BP Ranch — $89") y que no son ni un
+ * producto ni una opción del menú. Con el menú en el prompt ya casi no pasa,
+ * pero un platillo inventado con precio es justo lo que no puede llegarle al
+ * cliente, así que se revisa siempre.
+ */
+function productosInventados(contenido: string, menu: MenuSnapshot): string[] {
+  const conocidos = [...menu.productos, ...menu.opciones].map(clave).filter(Boolean);
+  if (conocidos.length === 0) return []; // sin menú no hay contra qué revisar
+
+  // Solo renglones con forma de lista ("• X — $89", "1. X ($89)", "X $89 · Y
+  // $95"): ahí es donde inventa menús. Una frase como "Tu pedido va en $389"
+  // no es un producto.
+  const segmentos = contenido
+    .split("\n")
+    .flatMap((linea) => (linea.includes("·") ? linea.split("·").map((s) => `• ${s}`) : [linea]));
+
+  const inventados: string[] = [];
+  for (const crudo of segmentos) {
+    const segmento = crudo.trim();
+    if (!/(\$|MXN)\s?\d/.test(segmento)) continue;
+    const esLista =
+      /^([•\-–*]|\d+[.)])/.test(segmento) || /^[^.!?¡¿,]{2,40}?\s[—–-]?\s?(\$|MXN)\s?\d/.test(segmento);
+    if (!esLista) continue;
+    const nombre = segmento
+      .split(/\$|MXN|—|–| - |:|\(/)[0]
+      .replace(/^[\s•*_\-–\d.)x]+/i, "")
+      .replace(/[*_]/g, "")
+      .trim();
+    const k = clave(nombre);
+    if (k.length < 3 || NO_PRODUCTO.test(k)) continue;
+    const existe = conocidos.some((c) => c.includes(k) || (c.length >= 4 && k.includes(c)));
+    if (!existe) inventados.push(nombre);
+  }
+  return inventados;
+}
+
 /**
  * Contesta un mensaje con la IA. Devuelve `null` si DeepSeek no responde, para
  * que el bot numerado tome el relevo.
@@ -481,13 +536,20 @@ export async function handleWithAI(
     );
   }
 
+  const menu = await menuSnapshot();
+  const sistema =
+    SYSTEM +
+    (menu.texto ? `\n\nMENÚ VIGENTE (es lo único que existe; nombres y precios exactos):\n${menu.texto}` : "") +
+    (contexto.length > 0 ? `\n\nESTADO:\n${contexto.join("\n")}` : "");
+
   const mensajes: ChatMessage[] = [
-    { role: "system", content: SYSTEM + (contexto.length > 0 ? `\n\nESTADO:\n${contexto.join("\n")}` : "") },
+    { role: "system", content: sistema },
     ...historial.map((h) => ({ role: h.role, content: h.content }) as ChatMessage),
     { role: "user", content: texto },
   ];
 
   let confirmar = false;
+  let corregido = false;
 
   for (let vuelta = 0; vuelta < MAX_VUELTAS; vuelta++) {
     const respuesta = await llamar(mensajes);
@@ -501,6 +563,22 @@ export async function handleWithAI(
       if (!contenido) {
         console.warn("[whatsapp/ia] el modelo contestó vacío");
         return null;
+      }
+
+      const inventados = productosInventados(contenido, menu);
+      if (inventados.length > 0) {
+        console.warn(`[whatsapp/ia] productos que no existen: ${inventados.join(", ")}`);
+        // Una oportunidad de corregirse; si reincide, contesta el menú numerado,
+        // que sale directo de la base y no puede inventar nada.
+        if (corregido) return null;
+        corregido = true;
+        mensajes.push({
+          role: "user",
+          content:
+            `[SISTEMA, no lo ve el cliente] Tu respuesta menciona productos que NO existen: ${inventados.join(", ")}. ` +
+            "Reescríbela usando solo productos y precios del MENÚ VIGENTE.",
+        });
+        continue;
       }
 
       data.history = [

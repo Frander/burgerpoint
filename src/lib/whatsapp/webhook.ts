@@ -72,6 +72,7 @@ interface MetaPayload {
           audio?: MetaMedia;
           video?: MetaMedia;
           sticker?: MetaMedia;
+          location?: { latitude?: number; longitude?: number; name?: string; address?: string };
           interactive?: {
             button_reply?: { id?: string; title?: string };
             list_reply?: { id?: string; title?: string };
@@ -85,6 +86,20 @@ interface MetaPayload {
       };
     }[];
   }[];
+}
+
+/**
+ * La ubicación que comparten en vez de escribir la dirección se vuelve texto
+ * con enlace a Google Maps: el bot la toma como dirección y el repartidor la
+ * abre desde el ticket.
+ */
+function textoUbicacion(
+  loc: { latitude?: number; longitude?: number; name?: string; address?: string } | undefined,
+): string | undefined {
+  if (loc?.latitude == null || loc.longitude == null) return undefined;
+  const lugar = [loc.name, loc.address].filter(Boolean).join(", ");
+  const mapa = `https://maps.google.com/?q=${loc.latitude},${loc.longitude}`;
+  return `📍 Ubicación${lugar ? `: ${lugar}` : ""} ${mapa}`;
 }
 
 /** Saca los mensajes entrantes del payload (Meta los manda anidados y en lote). */
@@ -109,6 +124,7 @@ export function parseInbound(payload: unknown): InboundMessage[] {
           msg.interactive?.button_reply?.title ??
           msg.interactive?.list_reply?.title ??
           msg.button?.text ??
+          textoUbicacion(msg.location) ??
           "";
 
         const tipo = msg.type ?? "text";

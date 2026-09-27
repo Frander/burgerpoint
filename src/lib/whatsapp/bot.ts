@@ -318,6 +318,22 @@ async function pedidosActivos(phone: string): Promise<string[]> {
   );
 }
 
+/** ¿Tiene un pedido en curso sin pagar? Entonces una foto es su comprobante. */
+export async function tienePedidoSinPagar(phone: string): Promise<boolean> {
+  const supabase = createAdminClient();
+  if (!supabase) return false;
+  const local = phone.slice(-10);
+  const desde = new Date(Date.now() - 12 * 60 * 60 * 1000).toISOString();
+  const { count } = await supabase
+    .from("orders")
+    .select("id", { count: "exact", head: true })
+    .or(`customer_phone.eq.${phone},customer_phone.ilike.%${local}%`)
+    .eq("payment_status", "no_pagado")
+    .not("status", "in", "(entregado,cancelado)")
+    .gte("created_at", desde);
+  return (count ?? 0) > 0;
+}
+
 // ---------- máquina de estados ----------
 
 export interface BotReply {

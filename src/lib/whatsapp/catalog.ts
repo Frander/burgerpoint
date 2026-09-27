@@ -174,3 +174,43 @@ export async function searchProducts(term: string): Promise<BotProduct[]> {
     has_modifiers: conOpciones.has(p.id),
   }));
 }
+
+export interface MenuSnapshot {
+  /** "Categoría: Producto $precio, …" por línea, para el prompt de la IA. */
+  texto: string;
+  /** Nombres pedibles (productos) y de opciones, para validar lo que diga la IA. */
+  productos: string[];
+  opciones: string[];
+}
+
+/**
+ * Menú vigente completo en dos consultas. La IA lo recibe en cada turno para
+ * que no tenga que adivinar (con solo herramientas llegó a inventar platillos
+ * cuando no las llamaba), y el mismo listado sirve para revisar su respuesta.
+ */
+export async function menuSnapshot(): Promise<MenuSnapshot> {
+  const supabase = createAdminClient();
+  if (!supabase) return { texto: "", productos: [], opciones: [] };
+
+  const [{ data: categories }, { data: products }, { data: modifiers }] = await Promise.all([
+    supabase.from("categories").select("*").eq("active", true).order("sort_order"),
+    supabase.from("products").select("*").order("sort_order"),
+    supabase.from("modifiers").select("name"),
+  ]);
+
+  const pedibles = ((products ?? []) as Product[]).filter((p) => !isSoldOut(p));
+  const lineas: string[] = [];
+  for (const c of (categories ?? []) as Category[]) {
+    const deLaCategoria = pedibles.filter((p) => p.category_id === c.id);
+    if (deLaCategoria.length === 0) continue;
+    lineas.push(
+      `${c.name}: ${deLaCategoria.map((p) => `${p.name} $${Number(p.price)}`).join(", ")}`,
+    );
+  }
+
+  return {
+    texto: lineas.join("\n"),
+    productos: pedibles.map((p) => p.name),
+    opciones: ((modifiers ?? []) as Pick<Modifier, "name">[]).map((m) => m.name),
+  };
+}

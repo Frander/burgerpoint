@@ -10,7 +10,7 @@ import {
   recordStatus,
   verifySignature,
 } from "@/lib/whatsapp/webhook";
-import { alertaPedidoBot, handleIncoming } from "@/lib/whatsapp/bot";
+import { alertaPedidoBot, handleIncoming, tienePedidoSinPagar } from "@/lib/whatsapp/bot";
 import { getSession, pruneSessions, touchContact } from "@/lib/whatsapp/session";
 
 /**
@@ -85,6 +85,24 @@ export async function POST(request: NextRequest) {
   return new Response("EVENT_RECEIVED", { status: 200 });
 }
 
+/**
+ * Qué contestar a lo que no es texto. Una foto o PDF solo se toma como
+ * comprobante si el cliente tiene un pedido sin pagar; si no, suele ser la
+ * foto de lo que quiere. Stickers y reacciones no llevan respuesta.
+ */
+async function respuestaSinTexto(phone: string, tipo: string): Promise<string | null> {
+  if (tipo === "sticker" || tipo === "reaction") return null;
+  if (tipo === "image" || tipo === "document") {
+    return (await tienePedidoSinPagar(phone))
+      ? "📎 ¡Recibimos tu comprobante, gracias! En un momento lo revisamos y confirmamos tu pago."
+      : "📷 Recibí tu imagen, pero por ahora no puedo ver fotos. Escríbeme qué se te antoja o escribe *menu* para ver la carta. 🍔";
+  }
+  if (tipo === "audio") {
+    return "🎤 Por ahora no puedo escuchar audios. ¿Me lo escribes, por favor? 🙏";
+  }
+  return "Por ahora solo entiendo mensajes de texto. Escribe *menu* para ver la carta. 🍔";
+}
+
 async function procesar(payload: unknown) {
   for (const { wamid, status, error } of parseStatuses(payload)) {
     await recordStatus(wamid, status, error);
@@ -106,15 +124,8 @@ async function procesar(payload: unknown) {
     if (!msg.text.trim()) {
       // Con una persona atendiendo, el bot no se mete ni para esto.
       if ((await getSession(msg.from)).state === "humano") continue;
-      // Una foto o PDF casi siempre es el comprobante de la transferencia: se
-      // acusa de recibido y el staff lo revisa en la bandeja de WhatsApp.
-      const esComprobante = msg.type === "image" || msg.type === "document";
-      await sendText({
-        to: msg.from,
-        body: esComprobante
-          ? "📎 ¡Recibimos tu comprobante, gracias! En un momento lo revisamos y confirmamos tu pago."
-          : "Por ahora solo entiendo mensajes de texto. Escribe *menu* para ver la carta. 🍔",
-      });
+      const cuerpo = await respuestaSinTexto(msg.from, msg.type);
+      if (cuerpo) await sendText({ to: msg.from, body: cuerpo });
       continue;
     }
 
