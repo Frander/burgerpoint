@@ -23,6 +23,8 @@ export const SETTING_KEYS = {
   couponPercent: "coupon_percent",
   /** Días y horas de atención (ver lib/hours.ts). */
   businessHours: "business_hours",
+  /** "Cerrar por hoy": ISO hasta el que no se toman pedidos. */
+  closedUntil: "closed_until",
 } as const;
 
 /** Valores con los que arranca el programa de puntos si nadie los ha tocado. */
@@ -97,7 +99,14 @@ export async function getLoyaltyConfig(): Promise<LoyaltyConfig> {
 
 /** Horario de atención. Sin ajuste guardado está apagado: se atiende siempre. */
 export async function getHorario(): Promise<Horario> {
-  return normalizarHorario(await getSetting(SETTING_KEYS.businessHours));
+  const [horario, cerradoHasta] = await Promise.all([
+    getSetting(SETTING_KEYS.businessHours),
+    getSetting(SETTING_KEYS.closedUntil),
+  ]);
+  return {
+    ...normalizarHorario(horario),
+    cerradoHasta: typeof cerradoHasta === "string" && cerradoHasta ? cerradoHasta : null,
+  };
 }
 
 /**

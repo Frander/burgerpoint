@@ -33,6 +33,12 @@ export interface Horario {
   activo: boolean;
   /** 7 días, domingo primero. */
   dias: DiaHorario[];
+  /**
+   * Cierre manual ("Cerrar por hoy"): hasta este momento (ISO) no se toman
+   * pedidos aunque el horario diga abierto. Se guarda aparte del horario
+   * semanal (llave `closed_until`) y se junta aquí al leerlo.
+   */
+  cerradoHasta?: string | null;
 }
 
 export const HORARIO_DEFAULT: Horario = {
@@ -89,7 +95,13 @@ export function ahoraEnYucatan(now: Date = new Date()): { dia: number; minuto: n
 }
 
 /** ¿Se atiende en este momento? Contempla turnos que cruzan la medianoche. */
+/** ¿Está vigente el "Cerrar por hoy"? */
+export function cerradoManual(horario: Horario, now: Date = new Date()): boolean {
+  return !!horario.cerradoHasta && now.getTime() < new Date(horario.cerradoHasta).getTime();
+}
+
 export function estaAbierto(horario: Horario, now: Date = new Date()): boolean {
+  if (cerradoManual(horario, now)) return false;
   if (!horario.activo) return true;
   const { dia, minuto } = ahoraEnYucatan(now);
 
@@ -145,11 +157,53 @@ export function lineasHorario(horario: Horario): string[] {
 
 /** Mensaje para el cliente cuando está cerrado (bot y web). */
 export function mensajeCerrado(horario: Horario): string {
-  return (
-    "🕐 En este momento estamos *cerrados* y no podemos tomar pedidos.\n\n" +
-    `*Nuestro horario* (hora de Yucatán):\n${lineasHorario(horario).map((l) => `• ${l}`).join("\n")}\n\n` +
-    "¡Te esperamos! 🍔"
+  const aviso = cerradoManual(horario)
+    ? "🕐 Por hoy ya *cerramos* y no estamos tomando pedidos."
+    : "🕐 En este momento estamos *cerrados* y no podemos tomar pedidos.";
+  // Sin horario configurado (solo el cierre manual) no hay horario que mostrar.
+  const lista = horario.activo
+    ? `\n\n*Nuestro horario* (hora de Yucatán):\n${lineasHorario(horario).map((l) => `• ${l}`).join("\n")}`
+    : "";
+  return `${aviso}${lista}\n\n¡Te esperamos! 🍔`;
+}
+
+/** Yucatán está en UTC-6 todo el año (sin horario de verano desde 2022). */
+const OFFSET_MIN = -6 * 60;
+
+/**
+ * Hasta cuándo dura "Cerrar por hoy": el inicio del siguiente turno del
+ * horario (mañana a las 6:00 pm, por ejemplo). Sin horario configurado, hasta
+ * mañana a las 6:00 am.
+ */
+export function siguienteApertura(horario: Horario, now: Date = new Date()): Date {
+  const { dia, minuto } = ahoraEnYucatan(now);
+  const inicioDelMinuto = now.getTime() - (now.getTime() % 60_000);
+  const en = (minutosDesdeAhora: number) => new Date(inicioDelMinuto + minutosDesdeAhora * 60_000);
+
+  if (horario.activo) {
+    for (let d = 0; d <= 7; d++) {
+      const dd = horario.dias[(dia + d) % 7];
+      if (!dd.abierto) continue;
+      const abre = minutos(dd.desde);
+      if (d === 0 && abre <= minuto) continue; // el de hoy ya empezó
+      return en(d * 1440 + abre - minuto);
+    }
+  }
+  return en(1440 - minuto + 6 * 60);
+}
+
+/** "mañana a las 6:00 pm", "el viernes a las 1:00 pm" (hora de Yucatán). */
+export function describirMomento(fecha: Date, now: Date = new Date()): string {
+  const local = (d: Date) => new Date(d.getTime() + OFFSET_MIN * 60_000);
+  const dias = Math.round(
+    (Date.UTC(local(fecha).getUTCFullYear(), local(fecha).getUTCMonth(), local(fecha).getUTCDate()) -
+      Date.UTC(local(now).getUTCFullYear(), local(now).getUTCMonth(), local(now).getUTCDate())) /
+      86_400_000,
   );
+  const f = local(fecha);
+  const hhmm = `${String(f.getUTCHours()).padStart(2, "0")}:${String(f.getUTCMinutes()).padStart(2, "0")}`;
+  const cuando = dias === 0 ? "hoy" : dias === 1 ? "mañana" : `el ${DIAS[f.getUTCDay()].toLowerCase()}`;
+  return `${cuando} a las ${hora12(hhmm)}`;
 }
 
 /**

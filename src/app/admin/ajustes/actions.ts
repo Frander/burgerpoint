@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { sectionClient } from "@/lib/supabase/auth";
 import { SETTING_KEYS } from "@/lib/settings";
-import { horaValida, type Horario } from "@/lib/hours";
+import { horaValida, normalizarHorario, siguienteApertura, type Horario } from "@/lib/hours";
 
 export interface ActionResult {
   ok: boolean;
@@ -142,6 +142,35 @@ export async function setHorario(horario: Horario): Promise<ActionResult> {
 
   const { error } = await supabase.from("app_settings").upsert(
     { key: SETTING_KEYS.businessHours, value, updated_at: new Date().toISOString() },
+    { onConflict: "key" },
+  );
+  if (error) return { ok: false, error: error.message };
+
+  revalidatePath("/admin/ajustes");
+  revalidatePath("/menu");
+  return { ok: true };
+}
+
+/**
+ * "Cerrar por hoy": deja de tomar pedidos (web y bot) hasta el siguiente turno
+ * del horario. `abierto = true` lo quita y se vuelve a atender según horario.
+ */
+export async function setCierreManual(cerrar: boolean): Promise<ActionResult> {
+  const supabase = await sectionClient("ajustes");
+
+  let value: string | null = null;
+  if (cerrar) {
+    const { data } = await supabase
+      .from("app_settings")
+      .select("value")
+      .eq("key", SETTING_KEYS.businessHours)
+      .maybeSingle();
+    const horario = normalizarHorario((data as { value: unknown } | null)?.value);
+    value = siguienteApertura(horario).toISOString();
+  }
+
+  const { error } = await supabase.from("app_settings").upsert(
+    { key: SETTING_KEYS.closedUntil, value, updated_at: new Date().toISOString() },
     { onConflict: "key" },
   );
   if (error) return { ok: false, error: error.message };

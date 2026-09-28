@@ -2,8 +2,16 @@
 
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { setHorario } from "@/app/admin/ajustes/actions";
-import { DIAS, estaAbierto, lineasHorario, type Horario } from "@/lib/hours";
+import { setCierreManual, setHorario } from "@/app/admin/ajustes/actions";
+import {
+  DIAS,
+  cerradoManual,
+  describirMomento,
+  estaAbierto,
+  lineasHorario,
+  siguienteApertura,
+  type Horario,
+} from "@/lib/hours";
 
 /** Lunes primero en pantalla; en los datos el domingo es el 0. */
 const ORDEN = [1, 2, 3, 4, 5, 6, 0];
@@ -26,8 +34,31 @@ export default function HorarioManager({
   const [error, setError] = useState<string | null>(null);
   const [saved, setSaved] = useState(false);
 
-  const dirty = JSON.stringify(draft) !== JSON.stringify(horario);
+  // cerradoHasta no se edita aquí: se compara solo el horario semanal.
+  const dirty =
+    JSON.stringify({ activo: draft.activo, dias: draft.dias }) !==
+    JSON.stringify({ activo: horario.activo, dias: horario.dias });
   const abiertoAhora = estaAbierto(horario);
+  const cerradoAMano = cerradoManual(horario);
+
+  function cierreManual(cerrar: boolean) {
+    if (
+      cerrar &&
+      !confirm(
+        `¿Cerrar por hoy? No se recibirán pedidos por la web ni por WhatsApp hasta ${describirMomento(
+          siguienteApertura(horario),
+        )}. El PDV sigue funcionando.`,
+      )
+    )
+      return;
+    setError(null);
+    setSaved(false);
+    startTransition(async () => {
+      const res = await setCierreManual(cerrar);
+      if (res.ok) router.refresh();
+      else setError(res.error ?? "No se pudo cambiar.");
+    });
+  }
 
   function cambiarDia(i: number, patch: Partial<Horario["dias"][number]>) {
     setSaved(false);
@@ -78,6 +109,30 @@ export default function HorarioManager({
         >
           {horaActual} · {abiertoAhora ? "Abierto" : "Cerrado"}
         </span>
+      </div>
+
+      <div
+        className={`mt-4 flex flex-wrap items-center justify-between gap-3 rounded-lg px-3 py-2.5 text-sm ${
+          cerradoAMano
+            ? "bg-red-50 text-red-900 dark:bg-red-500/10 dark:text-red-200"
+            : "bg-black/[.03] dark:bg-white/5"
+        }`}
+      >
+        <span>
+          {cerradoAMano
+            ? `Cerrado por hoy: no se reciben pedidos hasta ${describirMomento(new Date(horario.cerradoHasta!))}.`
+            : "¿Se terminó el día antes? Deja de recibir pedidos de la web y WhatsApp."}
+        </span>
+        <button
+          type="button"
+          onClick={() => cierreManual(!cerradoAMano)}
+          disabled={pending}
+          className={`shrink-0 rounded-md px-3 py-1.5 text-sm font-medium text-white disabled:opacity-50 ${
+            cerradoAMano ? "bg-green-600 hover:bg-green-700" : "bg-red-600 hover:bg-red-700"
+          }`}
+        >
+          {cerradoAMano ? "Abrir de nuevo" : "Cerrar por hoy"}
+        </button>
       </div>
 
       <label className="mt-4 flex items-center gap-2 text-sm font-medium">
