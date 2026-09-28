@@ -3,12 +3,67 @@
 Documento para retomar el trabajo en otra sesión. Resume qué está hecho, qué
 falta de tu lado, y los próximos pasos sugeridos.
 
-_Última actualización: 25 sep 2026 (WhatsApp ya con el número real 997 122 4633;
-recuperar contraseña; reimprimir por el agente; confirmación de domicilios web)_
+_Última actualización: 27 sep 2026 (horario de atención y "Cerrar por hoy";
+bot sin duplicados ni productos inventados; pedidos atómicos; confirmar pago
+por transferencia; sonido de pedido nuevo; agente imprime al llegar)_
 
 ---
 
-## 🧾 Bitácora — sesión 24–25 sep 2026 (leer primero)
+## 🧾 Bitácora — sesión 25–27 sep 2026 (leer primero)
+
+### Hecho y en producción
+Todo empujado a `origin` y `view`; Vercel desplegado. Migraciones **0013–0017
+aplicadas** en Supabase.
+
+| Commit | Qué |
+|---|---|
+| `f30729d` | Se subió todo lo que estaba local: **Ajustes** (repartidor por defecto, **precio de envío = lo que gana el repartidor**), reportes de envíos, puntos/cupones, `/cuenta`, bandeja de WhatsApp |
+| `8352cc9` | Bot manda la **CLABE** (Mercado Pago W, `BUSINESS.transferencia` en `src/lib/business.ts`) si preguntan por transferencia/depósito y pide comprobante |
+| `efe566d` | Se guarda en `wa_messages.error` el motivo cuando Meta marca un envío `failed` |
+| `d355dcf` | **Fotos, audios, videos y archivos** del cliente visibles en la bandeja (`/api/whatsapp/media/[id]`, id del adjunto en `wa_messages.payload`) |
+| `b8e2c99` | Pausa del bot guarda el paso (`resumeState`) y al **reactivar** retoma el carrito; lo escrito en la pausa entra al historial de la IA. Botón **"✓ Confirmar pago por transferencia"** en la conversación (registra el pago y avisa por WhatsApp; también al cobrar transferencia en el PDV). **Sin leer** (migración 0016, `wa_contacts.last_read_at`) |
+| `8fa3628` | **Pedido + productos en una transacción** (`create_order` / `insert_order_items`, migración 0017). Antes el agente imprimía tickets incompletos |
+| `e3283d6` | Agente: `iniciar-agente.bat` se reinicia solo si se cae |
+| `62a20ae` | Bot reconoce el mensaje "*Nuevo pedido* Folio: …" que abre la web y **no crea duplicado**; la IA recibe los pedidos en curso del cliente |
+| `979cb84` | **IA con el menú vigente** en cada turno + filtro de productos inventados (reintenta una vez, luego menú numerado). Foto = comprobante solo si hay pedido sin pagar. **Ubicación** compartida → texto con Google Maps (se acepta como dirección) |
+| `4ab024a` | **Horario de atención** (Ajustes, hora de Yucatán, turnos que cruzan medianoche). Fuera de horario: bot avisa, web "Cerrado" y `insertOrder` rechaza web/bot (PDV no). Menú del bot uno por renglón |
+| `ca4fc1c` | Bot contesta "¿cuál es su horario?" / "¿a qué hora cierran?" |
+| `83145bb` `ff585f8` | Agente: barrido cada **20 s**, rastro `📥` de cada aviso, **imprime todo pedido en cuanto llega** (`printOnArrival`, por defecto true) y el ticket dice **WEB / WHATSAPP / PDV** |
+| `36cd647` | **"Cerrar por hoy" / "Abrir de nuevo"** en Ajustes (llave `closed_until`, cierra hasta el siguiente turno) |
+| `7e31e59` | **Sonido de pedido nuevo** en PDV (solo web/WhatsApp) y cocina (todos). Botón 🔔/🔕 por equipo; el navegador pide un clic para habilitar audio |
+
+### Hallazgos de esta sesión
+- **Plantillas aprobadas pero no se entregan**: Meta acepta y luego marca
+  `failed`. `GET /1396710316849293?fields=health_status` → WABA error
+  **141006 (método de pago)** + negocio sin verificar (141010). Se arregla en
+  business.facebook.com → Ticul_Conectado → Facturación y pagos.
+- La web abre WhatsApp con el resumen del pedido (`src/lib/whatsapp.ts`); por
+  eso el bot recibe "*Nuevo pedido — …* Folio:" de casi todo cliente web.
+- Horario guardado por el usuario: todos los días **6:00 pm – 11:00 pm**.
+- Probar el bot sin mandar WhatsApp: `WHATSAPP_SIMULATOR=1` (ya en
+  `.env.local`) y `POST /api/whatsapp/simular {phone, text, name}` con un
+  teléfono falso (`52100000000xx`); borrar después su fila de `wa_sessions`.
+
+### ⏳ Pendiente
+1. **Agente en la PC de la caja**: copiar de `print-agent.zip` →
+   `index.js`, `ticket.js`, `iniciar-agente.bat` (NO `config.json` ni
+   `state.json`). Al arrancar debe decir `imprime con: en_cocina, nuevo`.
+   Si algo no imprime, pedir foto de la ventana (líneas `📥` / `🖨` / `🔎`).
+   Recomendar el PASO 6 (arranque con Windows).
+2. **Método de pago en Meta** (error 141006) y verificación del negocio;
+   luego confirmar con `health_status` y probar una plantilla.
+3. En Vercel faltan `WHATSAPP_ALERT_TO` (número que recibe la alerta de pedido
+   nuevo) y `WHATSAPP_STATUS_TEMPLATES=1`. Cambiar variables no redespliega.
+4. Pantallas de admin (Ajustes → Horario, "Cerrar por hoy") no se probaron
+   con clic: no hay cuenta de prueba **admin**. La lógica se probó directo en
+   la base y con el simulador.
+5. La ubicación de WhatsApp → dirección no se ha visto con un mensaje real.
+6. Siguen vigentes los puntos 4–6 de la bitácora anterior (Supabase Auth URLs,
+   SMTP, `NEXT_PUBLIC_WHATSAPP_PHONE`).
+
+---
+
+## 🧾 Bitácora anterior — sesión 24–25 sep 2026
 
 ### Hecho y en producción
 
@@ -48,8 +103,8 @@ panel— **sigue local y sin subir**, intacto.
   negocio (10 sep)" de abajo queda como historia.
 - Plantillas en la WABA nueva (ver en business.facebook.com → Ticul_Conectado →
   Administrador de WhatsApp → cuenta `28850711661200297` → Plantillas):
-  `pedido_nuevo_alerta`, `pedido_estado`, `pedido_confirmado` — **las tres en
-  revisión (PENDING)** al cierre de la sesión.
+  `pedido_nuevo_alerta`, `pedido_estado`, `pedido_confirmado` — **aprobadas**
+  (25 sep); ver en la bitácora nueva por qué todavía no se entregan.
 
 ### Confirmación de domicilio web (`88ec963`)
 `notifyOrderConfirmation` en `src/lib/whatsapp/notify.ts`, llamada desde
@@ -86,8 +141,7 @@ Probado con el agente en `--dry-run`: confirmó en 0.8 s.
 6. Cambiar contraseña a mano: **Admin → Usuarios → "Nueva contraseña"**, o en
    el SQL Editor `update auth.users set encrypted_password =
    crypt('…', gen_salt('bf')) where email = '…';`.
-7. **Subir lo local** (ajustes, puntos, pausa del bot, etc.): revisar qué
-   depende de las migraciones 0013–0015 y avisar antes de `supabase db push`.
+7. ~~**Subir lo local**~~ ✅ hecho el 25 sep (`f30729d`, migraciones 0013–0015 aplicadas).
 
 ---
 
