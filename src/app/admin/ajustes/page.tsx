@@ -4,11 +4,18 @@ import { getCouriers } from "@/lib/couriers";
 import {
   getDefaultCourierId,
   getDeliveryFee,
+  getHorario,
   getLoyaltyConfig,
 } from "@/lib/settings";
+import { ahoraEnYucatan } from "@/lib/hours";
 import SettingsManager from "@/components/admin/SettingsManager";
+import HorarioManager from "@/components/admin/HorarioManager";
 
 export const dynamic = "force-dynamic";
+
+function horaYucatan(): string {
+  return ahoraEnYucatan().hora;
+}
 
 export default async function AjustesPage() {
   await requireSection("ajustes");
@@ -24,19 +31,25 @@ export default async function AjustesPage() {
     );
   }
 
-  const [couriers, defaultCourierId, deliveryFee, loyalty] = await Promise.all([
+  const [couriers, defaultCourierId, deliveryFee, loyalty, horario] = await Promise.all([
     getCouriers(),
     getDefaultCourierId(),
     getDeliveryFee(),
     getLoyaltyConfig(),
+    getHorario(),
   ]);
 
   return (
-    <SettingsManager
-      couriers={couriers}
-      defaultCourierId={defaultCourierId}
-      deliveryFee={deliveryFee}
-      loyalty={loyalty}
-    />
+    <>
+      <SettingsManager
+        couriers={couriers}
+        defaultCourierId={defaultCourierId}
+        deliveryFee={deliveryFee}
+        loyalty={loyalty}
+      />
+      <div className="max-w-2xl">
+        <HorarioManager horario={horario} horaActual={horaYucatan()} />
+      </div>
+    </>
   );
 }

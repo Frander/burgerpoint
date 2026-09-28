@@ -11,7 +11,7 @@ import type {
   Product,
 } from "@/lib/types";
 import { isSoldOut } from "@/lib/product";
-import { getDeliveryFee } from "@/lib/settings";
+import { cerradoAhora, getDeliveryFee } from "@/lib/settings";
 import { checkCoupon, ensureCustomer, markCouponUsed } from "@/lib/loyalty";
 import { notifyNewOrder, notifyOrderConfirmation } from "@/lib/whatsapp/notify";
 
@@ -191,6 +191,13 @@ export async function insertOrder(
   supabase: SupabaseClient,
   input: InsertOrderInput,
 ): Promise<InsertOrderResult> {
+  // Fuera del horario no entran pedidos de clientes (web y bot). El PDV sí:
+  // lo usa el staff, que decide si atiende a alguien que llegó tarde.
+  if ((input.origin ?? "web") !== "pdv") {
+    const cerrado = await cerradoAhora();
+    if (cerrado) return { ok: false, error: cerrado.replace(/\*/g, "") };
+  }
+
   const { lines, error: priceErr } = await priceLines(supabase, input.items);
   if (priceErr) return { ok: false, error: priceErr };
   if (lines.length === 0) {

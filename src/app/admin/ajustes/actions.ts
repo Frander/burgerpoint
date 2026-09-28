@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { sectionClient } from "@/lib/supabase/auth";
 import { SETTING_KEYS } from "@/lib/settings";
+import { horaValida, type Horario } from "@/lib/hours";
 
 export interface ActionResult {
   ok: boolean;
@@ -108,5 +109,44 @@ export async function setLoyaltyConfig(input: {
 
   revalidatePath("/admin/ajustes");
   revalidatePath("/cuenta");
+  return { ok: true };
+}
+
+/** Horario de atención: fuera de él el bot avisa y la web no acepta pedidos. */
+export async function setHorario(horario: Horario): Promise<ActionResult> {
+  const supabase = await sectionClient("ajustes");
+
+  if (!Array.isArray(horario?.dias) || horario.dias.length !== 7) {
+    return { ok: false, error: "El horario no es válido." };
+  }
+  for (const d of horario.dias) {
+    if (d.abierto && (!horaValida(d.desde) || !horaValida(d.hasta))) {
+      return { ok: false, error: "Revisa las horas: deben ir como 13:00." };
+    }
+    if (d.abierto && d.desde === d.hasta) {
+      return { ok: false, error: "La hora de apertura y la de cierre no pueden ser iguales." };
+    }
+  }
+  if (horario.activo && horario.dias.every((d) => !d.abierto)) {
+    return { ok: false, error: "Marca al menos un día abierto (o apaga el horario)." };
+  }
+
+  const value: Horario = {
+    activo: horario.activo === true,
+    dias: horario.dias.map((d) => ({
+      abierto: d.abierto === true,
+      desde: d.desde,
+      hasta: d.hasta,
+    })),
+  };
+
+  const { error } = await supabase.from("app_settings").upsert(
+    { key: SETTING_KEYS.businessHours, value, updated_at: new Date().toISOString() },
+    { onConflict: "key" },
+  );
+  if (error) return { ok: false, error: error.message };
+
+  revalidatePath("/admin/ajustes");
+  revalidatePath("/menu");
   return { ok: true };
 }

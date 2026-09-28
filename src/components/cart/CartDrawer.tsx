@@ -1,10 +1,10 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useCart } from "@/components/cart/CartProvider";
 import { formatMoney } from "@/lib/format";
 import { buildOrderMessage, buildWhatsappLink } from "@/lib/whatsapp";
-import { createOrder } from "@/app/(public)/actions";
+import { createOrder, getStoreClosedMessage } from "@/app/(public)/actions";
 import type { OrderType } from "@/lib/types";
 
 interface Confirmation {
@@ -32,6 +32,22 @@ export default function CartDrawer({
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [confirmation, setConfirmation] = useState<Confirmation | null>(null);
+  // Mensaje con el horario si está cerrado. Se pregunta al abrir el carrito:
+  // la página pudo quedarse abierta desde antes de la hora de cierre.
+  const [cerrado, setCerrado] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    let vigente = true;
+    getStoreClosedMessage()
+      .then((m) => {
+        if (vigente) setCerrado(m);
+      })
+      .catch(() => {});
+    return () => {
+      vigente = false;
+    };
+  }, [open]);
 
   if (!open) return null;
 
@@ -270,16 +286,21 @@ export default function CartDrawer({
                     className="w-full rounded-md border border-gray-200 px-3 py-2 text-sm placeholder:text-gray-400 focus:border-gray-900 focus:outline-none focus:ring-1 focus:ring-gray-900"
                   />
 
-                  {error && <p className="text-sm text-red-600">{error}</p>}
+                  {error && <p className="whitespace-pre-line text-sm text-red-600">{error}</p>}
                 </div>
               )}
             </div>
 
             {items.length > 0 && (
               <div className="border-t border-gray-100 p-4">
+                {cerrado && (
+                  <p className="mb-3 whitespace-pre-line rounded-lg bg-red-50 px-3 py-2 text-sm text-red-900">
+                    {cerrado}
+                  </p>
+                )}
                 <button
                   type="submit"
-                  disabled={submitting}
+                  disabled={submitting || cerrado !== null}
                   className="w-full rounded-full bg-gray-900 px-5 py-3 font-semibold text-white transition-colors hover:bg-gray-700 disabled:opacity-50"
                 >
                   {submitting ? "Enviando…" : `Confirmar pedido · ${formatMoney(total)}`}

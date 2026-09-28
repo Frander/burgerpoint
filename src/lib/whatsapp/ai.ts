@@ -188,6 +188,7 @@ const SYSTEM = `Eres el mesero virtual de ${BUSINESS.name}, una hamburguesería 
 REGLAS:
 - Español mexicano, tono amable y breve. Máximo 4 o 5 líneas por mensaje.
 - WhatsApp usa *un asterisco* para negritas. Nunca uses markdown de otro tipo.
+- Cuando muestres productos, UNO POR RENGLÓN: "• Nombre — $precio". Nunca varios en la misma línea.
 - NUNCA inventes productos, precios ni promociones. Solo existe lo que está en MENÚ VIGENTE (abajo), con esos nombres y precios exactos. Si piden algo que no está, dilo y ofrece lo que sí hay.
 - Si el producto tiene opciones obligatorias, pregúntaselas al cliente antes de agregarlo.
 - No prometas tiempos de entrega ni descuentos.
@@ -213,7 +214,16 @@ function paraWhatsapp(texto: string): string {
     .replace(/\*\*([\s\S]+?)\*\*/g, "*$1*")
     .replace(/__([\s\S]+?)__/g, "_$1_")
     // Encabezados markdown: WhatsApp los deja como "### Texto".
-    .replace(/^#{1,6}\s+(.+)$/gm, "*$1*");
+    .replace(/^#{1,6}\s+(.+)$/gm, "*$1*")
+    // "Clásica $120 · Ahuevo $120 · …" en un solo renglón no se lee en el
+    // celular: cada producto va en su propia línea.
+    .split("\n")
+    .map((linea) => {
+      const partes = linea.split(/\s·\s/);
+      if (partes.length < 2 || !partes.every((p) => /\$\s?\d/.test(p))) return linea;
+      return partes.map((p) => `• ${p.trim().replace(/^•\s*/, "")}`).join("\n");
+    })
+    .join("\n");
 }
 
 function resumenCarrito(cart: CartLine[]): string {

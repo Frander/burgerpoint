@@ -1,6 +1,7 @@
 import "server-only";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { estaAbierto, mensajeCerrado, normalizarHorario, type Horario } from "@/lib/hours";
 
 /**
  * Ajustes del negocio (tabla `app_settings`, migración 0013).
@@ -20,6 +21,8 @@ export const SETTING_KEYS = {
   couponPointsCost: "coupon_points_cost",
   /** Descuento del cupón, en por ciento. */
   couponPercent: "coupon_percent",
+  /** Días y horas de atención (ver lib/hours.ts). */
+  businessHours: "business_hours",
 } as const;
 
 /** Valores con los que arranca el programa de puntos si nadie los ha tocado. */
@@ -90,4 +93,18 @@ export async function getLoyaltyConfig(): Promise<LoyaltyConfig> {
     puntosPorCupon: positivo(puntos, LOYALTY_DEFAULTS.puntosPorCupon),
     porcentaje: Math.min(positivo(porcentaje, LOYALTY_DEFAULTS.porcentaje), 100),
   };
+}
+
+/** Horario de atención. Sin ajuste guardado está apagado: se atiende siempre. */
+export async function getHorario(): Promise<Horario> {
+  return normalizarHorario(await getSetting(SETTING_KEYS.businessHours));
+}
+
+/**
+ * ¿Se pueden tomar pedidos de clientes ahora? Devuelve el mensaje para el
+ * cliente cuando está cerrado, o null si está abierto.
+ */
+export async function cerradoAhora(): Promise<string | null> {
+  const horario = await getHorario();
+  return estaAbierto(horario) ? null : mensajeCerrado(horario);
 }

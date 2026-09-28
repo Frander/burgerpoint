@@ -9,6 +9,18 @@ import {
   type OrderModifierInput,
 } from "@/lib/order-insert";
 import type { OrderType } from "@/lib/types";
+import { cerradoAhora } from "@/lib/settings";
+
+/**
+ * Para el carrito: si está cerrado, el mensaje con el horario (sin los
+ * asteriscos de WhatsApp); null si se atiende. El pedido igual lo vuelve a
+ * revisar insertOrder, esto es solo para no dejarle llenar el formulario.
+ */
+export async function getStoreClosedMessage(): Promise<string | null> {
+  if (!isSupabaseConfigured()) return null;
+  const cerrado = await cerradoAhora();
+  return cerrado ? cerrado.replace(/\*/g, "") : null;
+}
 
 export type NewOrderModifier = OrderModifierInput;
 export type NewOrderItem = OrderLineInput;

@@ -9,9 +9,15 @@ const ADDRESS = "México 188 246, Ticul, 97864 Ticul, Yuc., México";
 export default function Storefront({
   menu,
   previewMode,
+  abierto,
+  horario,
 }: {
   menu: MenuCategory[];
   previewMode: boolean;
+  /** Según el horario de Ajustes, en hora de Yucatán. */
+  abierto: boolean;
+  /** "Lunes a Viernes: 1:00 pm – 11:00 pm"… (vacío si no hay horario). */
+  horario: string[];
 }) {
   return (
     <div className="min-h-full bg-white text-gray-900">
@@ -54,10 +60,17 @@ export default function Storefront({
           </div>
           <p className="mt-2 text-sm text-gray-500">{ADDRESS}</p>
           <div className="mt-3 flex flex-wrap items-center gap-2 pb-4 text-xs font-medium">
-            <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-50 px-2.5 py-1 text-emerald-700">
-              <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
-              Abierto
-            </span>
+            {abierto ? (
+              <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-50 px-2.5 py-1 text-emerald-700">
+                <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
+                Abierto
+              </span>
+            ) : (
+              <span className="inline-flex items-center gap-1.5 rounded-full bg-red-50 px-2.5 py-1 text-red-700">
+                <span className="h-1.5 w-1.5 rounded-full bg-red-500" />
+                Cerrado
+              </span>
+            )}
             <span className="rounded-full bg-gray-100 px-2.5 py-1 text-gray-700">
               🛵 Entrega 20 - 35 min.
             </span>
@@ -69,6 +82,22 @@ export default function Storefront({
       </header>
 
       <div className="mx-auto w-full max-w-4xl px-4 pb-28">
+        {!abierto && (
+          <div className="mb-4 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-900">
+            <p className="font-semibold">
+              Ahora estamos cerrados: puedes ver el menú, pero no recibimos pedidos.
+            </p>
+            {horario.length > 0 && (
+              <ul className="mt-2 space-y-0.5">
+                {horario.map((l) => (
+                  <li key={l}>{l}</li>
+                ))}
+              </ul>
+            )}
+            <p className="mt-2 text-xs text-red-800/70">Horario de Yucatán.</p>
+          </div>
+        )}
+
         {previewMode && (
           <div className="mb-4 rounded-lg border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-900">
             Modo vista previa: mostrando un menú de ejemplo. Conecta Supabase

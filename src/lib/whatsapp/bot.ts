@@ -4,7 +4,7 @@ import { BUSINESS } from "@/lib/business";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { insertOrder } from "@/lib/order-insert";
 // El envío sale del ajuste del negocio: el mismo que cobran la web y el PDV.
-import { getDeliveryFee } from "@/lib/settings";
+import { cerradoAhora, getDeliveryFee } from "@/lib/settings";
 import { checkCoupon, getCustomerSummary, redeemCoupon } from "@/lib/loyalty";
 import { notifyNewOrder } from "@/lib/whatsapp/notify";
 import {
@@ -490,6 +490,11 @@ export async function handleIncoming(
     await saveSession(phone, "carrito", data);
     return { mensajes: [cartResumen(data.cart!) + ACCIONES_CARRITO] };
   }
+
+  // Fuera de horario no se arman pedidos (ni con la IA ni con el menú). Lo de
+  // arriba —estado, puntos, transferencia, acuse del pedido web— sí sigue.
+  const cerrado = await cerradoAhora();
+  if (cerrado) return { mensajes: [cerrado] };
 
   // "menu" siempre lleva al flujo numerado, aunque la IA esté encendida: es la
   // salida de emergencia cuando el cliente (o el modelo) se atora.
