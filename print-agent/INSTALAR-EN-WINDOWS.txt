@@ -84,8 +84,9 @@ Listo: cada vez que prenda la PC, arranca solo.
 COMO FUNCIONA (en corto)
 -----------------------------------------------------------
 - El programa se conecta por internet al sistema de pedidos.
-- Cuando un pedido pasa a COCINA, imprime la comanda y el
-  ticket del cliente automaticamente.
+- En cuanto LLEGA un pedido (web, WhatsApp o PDV) imprime la
+  comanda y el ticket del cliente automaticamente. El titulo
+  del ticket dice de donde vino: WEB, WHATSAPP o PDV.
 - Cada 20 segundos revisa de nuevo, por si se cayo el
   internet un momento; los pedidos atrasados salen despues.
 - Lleva cuenta de lo que ya imprimio, asi que NO repite

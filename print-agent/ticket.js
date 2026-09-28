@@ -10,6 +10,13 @@ const TYPE_LABEL = {
   en_mesa: "Mesa",
 };
 
+/** De dónde entró el pedido; va en el título de los dos tickets. */
+const ORIGIN_LABEL = {
+  pdv: "PDV",
+  web: "WEB",
+  whatsapp: "WHATSAPP",
+};
+
 const METHOD_LABEL = {
   efectivo: "Efectivo",
   tarjeta: "Tarjeta",
@@ -36,7 +43,7 @@ function title(order, mesaName) {
     order.type === "en_mesa"
       ? `Mesa${mesaName ? ` [${mesaName}]` : ""}`
       : (TYPE_LABEL[order.type] ?? order.type);
-  return `${base} - ${order.origin === "pdv" ? "PDV" : "WEB"}`;
+  return `${base} - ${ORIGIN_LABEL[order.origin] ?? "WEB"}`;
 }
 
 /** Ticket para el cliente (recibo completo con totales, pago y QR). */

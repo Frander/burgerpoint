@@ -36,6 +36,10 @@ const config = {
   autoPrint: { cliente: true, cocina: true },
   // Estados que disparan la impresión automática.
   printOnStatus: ["en_cocina"],
+  // Imprimir todo pedido en cuanto llega (web y WhatsApp llegan como "nuevo",
+  // el PDV como "en_cocina"). Cada pedido sale una sola vez: al pasarlo a
+  // cocina ya no se repite. false = esperar a que lo manden a cocina.
+  printOnArrival: true,
   printerShare: "\\\\localhost\\POS80",
   printerName: "", // macOS/Linux (lp -d), solo para pruebas
   business: {
@@ -182,10 +186,18 @@ async function printOrder(order, { force = false, only = null, throwOnError = fa
   }
 }
 
+/** Estados con los que se imprime solo; "nuevo" = en cuanto llega. */
+const PRINT_STATUSES = [
+  ...new Set([
+    ...(config.printOnStatus ?? ["en_cocina"]),
+    ...(config.printOnArrival !== false ? ["nuevo"] : []),
+  ]),
+];
+
 function shouldAutoPrint(order) {
   return (
     order &&
-    (config.printOnStatus ?? ["en_cocina"]).includes(order.status) &&
+    PRINT_STATUSES.includes(order.status) &&
     !state.printed[order.id]
   );
 }
@@ -259,7 +271,7 @@ async function main() {
 
   // ---------- Servicio: Realtime + barrido de respaldo ----------
   console.log(
-    `👂 Escuchando pedidos (estado: ${(config.printOnStatus ?? ["en_cocina"]).join(", ")})…`,
+    `👂 Escuchando pedidos (imprime con: ${PRINT_STATUSES.join(", ")})…`,
   );
 
   supabase
@@ -333,7 +345,7 @@ async function main() {
       const { data } = await supabase
         .from("orders")
         .select("*, order_items(*, order_item_modifiers(*)), order_payments(*)")
-        .in("status", config.printOnStatus ?? ["en_cocina"])
+        .in("status", PRINT_STATUSES)
         .gte("created_at", oneHourAgo);
       for (const order of data ?? []) {
         if (shouldAutoPrint(order)) {
