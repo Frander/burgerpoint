@@ -4,7 +4,8 @@ import { BUSINESS } from "@/lib/business";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { insertOrder } from "@/lib/order-insert";
 // El envío sale del ajuste del negocio: el mismo que cobran la web y el PDV.
-import { cerradoAhora, getDeliveryFee } from "@/lib/settings";
+import { cerradoAhora, getDeliveryFee, getHorario } from "@/lib/settings";
+import { mensajeHorario } from "@/lib/hours";
 import { checkCoupon, getCustomerSummary, redeemCoupon } from "@/lib/loyalty";
 import { notifyNewOrder } from "@/lib/whatsapp/notify";
 import {
@@ -362,6 +363,13 @@ Institución: ${transferencia.institucion}
 
 Cuando hagas la transferencia, *mándanos la foto o captura del comprobante* por aquí para confirmar tu pago. 🙏`;
 
+/** "¿Cuál es su horario?", "¿a qué hora abren?", "¿están abiertos?"… */
+function preguntaHorario(cmd: string): boolean {
+  return /horario|a que hora (abren|abre|cierran|cierra)|hasta que hora|estan abiertos|esta abierto|abren hoy|que dias (abren|atienden)/.test(
+    cmd,
+  );
+}
+
 /** "¿Puedo pagar con transferencia?", "pásame la clabe", "¿a qué cuenta deposito?"… */
 function pideTransferencia(cmd: string): boolean {
   return /transfer|transfier|clabe|deposit|numero de cuenta|cuenta bancaria|cuenta para pagar/.test(cmd);
@@ -424,6 +432,13 @@ export async function handleIncoming(
 
   if (["ayuda", "help", "?"].includes(cmd)) {
     return { mensajes: [AYUDA] };
+  }
+
+  // Funciona abierto o cerrado, y sin mover el paso en que va el cliente. Sin
+  // horario configurado no hay nada fijo que decir: lo contesta la IA.
+  if (preguntaHorario(cmd)) {
+    const horario = await getHorario();
+    if (horario.activo) return { mensajes: [mensajeHorario(horario)] };
   }
 
   // No cambia el paso en que va: el cliente sigue armando su pedido después.

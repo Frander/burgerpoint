@@ -1,6 +1,8 @@
 import "server-only";
 import { formatMoney } from "@/lib/format";
 import { BUSINESS } from "@/lib/business";
+import { getHorario } from "@/lib/settings";
+import { abiertoHasta, hora12, lineasHorario } from "@/lib/hours";
 import {
   getBotProduct,
   listCategories,
@@ -546,7 +548,15 @@ export async function handleWithAI(
     );
   }
 
-  const menu = await menuSnapshot();
+  const [menu, horario] = await Promise.all([menuSnapshot(), getHorario()]);
+  if (horario.activo) {
+    const hasta = abiertoHasta(horario);
+    contexto.push(
+      `Horario de atención (hora de Yucatán): ${lineasHorario(horario).join("; ")}. ` +
+        (hasta ? `Ahora está ABIERTO hasta las ${hora12(hasta)}.` : "Ahora está CERRADO.") +
+        " Si preguntan por el horario, dalo tal cual.",
+    );
+  }
   const sistema =
     SYSTEM +
     (menu.texto ? `\n\nMENÚ VIGENTE (es lo único que existe; nombres y precios exactos):\n${menu.texto}` : "") +

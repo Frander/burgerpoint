@@ -151,3 +151,27 @@ export function mensajeCerrado(horario: Horario): string {
     "¡Te esperamos! 🍔"
   );
 }
+
+/**
+ * Si está abierto, a qué hora cierra el turno en curso ("23:00"); si no, null.
+ * El turno puede ser el de hoy o el de ayer que pasó de la medianoche.
+ */
+export function abiertoHasta(horario: Horario, now: Date = new Date()): string | null {
+  if (!horario.activo || !estaAbierto(horario, now)) return null;
+  const { dia, minuto } = ahoraEnYucatan(now);
+  const hoy = horario.dias[dia];
+  if (hoy.abierto && minuto >= minutos(hoy.desde)) return hoy.hasta;
+  return horario.dias[(dia + 6) % 7].hasta;
+}
+
+/** Respuesta a "¿cuál es su horario?" / "¿están abiertos?". */
+export function mensajeHorario(horario: Horario, now: Date = new Date()): string {
+  const hasta = abiertoHasta(horario, now);
+  const estado = hasta
+    ? `Ahora mismo estamos *abiertos* ✅ hasta las ${hora12(hasta)}. Escribe *menu* para pedir. 🍔`
+    : "Ahora mismo estamos *cerrados*. ¡Te esperamos en nuestro horario! 🍔";
+  return (
+    `🕐 *Nuestro horario* (hora de Yucatán):\n${lineasHorario(horario).map((l) => `• ${l}`).join("\n")}\n\n` +
+    estado
+  );
+}
