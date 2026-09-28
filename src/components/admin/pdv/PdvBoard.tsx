@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState, useTransition } from "react";
+import { useCallback, useEffect, useRef, useState, useTransition } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { updateOrderStatus } from "@/app/admin/pedidos/actions";
 import {
@@ -25,6 +25,7 @@ import type {
 import PdvOrderEditor from "./PdvOrderEditor";
 import PdvPaymentModal from "./PdvPaymentModal";
 import PrintButton from "@/components/admin/PrintButton";
+import { OrderSoundToggle, useOrderSound } from "@/components/admin/OrderSound";
 
 type Tab = "mostrador" | "domicilio" | "mesas";
 
@@ -86,6 +87,13 @@ export default function PdvBoard({
   const [tick, setTick] = useState(0); // re-render de tiempos
   void tick;
 
+  const sonido = useOrderSound();
+  // La suscripción no se rehace al silenciar: lee siempre la versión vigente.
+  const sonarRef = useRef(sonido.sonar);
+  useEffect(() => {
+    sonarRef.current = sonido.sonar;
+  }, [sonido.sonar]);
+
   const refetch = useCallback(async () => {
     const supabase = createClient();
     const { data } = await supabase
@@ -103,7 +111,15 @@ export default function PdvBoard({
       .on(
         "postgres_changes",
         { event: "*", schema: "public", table: "orders" },
-        () => refetch(),
+        (payload) => {
+          // Suena lo que llega de fuera (web, WhatsApp); lo que captura la
+          // caja en el PDV no, porque ya lo sabe.
+          const row = payload.new as { origin?: string; status?: string } | undefined;
+          if (payload.eventType === "INSERT" && row?.origin !== "pdv" && row?.status !== "cancelado") {
+            sonarRef.current();
+          }
+          refetch();
+        },
       )
       .subscribe((status) => setLive(status === "SUBSCRIBED"));
     return () => {
@@ -175,6 +191,7 @@ export default function PdvBoard({
         </div>
 
         <div className="flex items-center gap-3">
+          <OrderSoundToggle {...sonido} />
           <span
             className={`flex items-center gap-1.5 text-xs ${
               live ? "text-green-600" : "text-black/40 dark:text-white/40"

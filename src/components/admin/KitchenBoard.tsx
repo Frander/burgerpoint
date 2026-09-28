@@ -1,10 +1,11 @@
 "use client";
 
-import { useCallback, useEffect, useState, useTransition } from "react";
+import { useCallback, useEffect, useRef, useState, useTransition } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { updateOrderStatus } from "@/app/admin/pedidos/actions";
 import { ORDER_TYPE_META, nextStatus, orderStatusLabel } from "@/lib/orders";
 import type { OrderStatus, OrderWithItems } from "@/lib/types";
+import { OrderSoundToggle, useOrderSound } from "@/components/admin/OrderSound";
 
 const COLUMNS: { status: OrderStatus; title: string }[] = [
   { status: "nuevo", title: "Nuevos" },
@@ -35,6 +36,12 @@ export default function KitchenBoard({
   const [live, setLive] = useState(false);
   const [, startTransition] = useTransition();
   const [tick, setTick] = useState(0); // fuerza re-render de los tiempos
+  const sonido = useOrderSound();
+  // La suscripción no se rehace al silenciar: lee siempre la versión vigente.
+  const sonarRef = useRef(sonido.sonar);
+  useEffect(() => {
+    sonarRef.current = sonido.sonar;
+  }, [sonido.sonar]);
 
   const refetch = useCallback(async () => {
     const supabase = createClient();
@@ -54,7 +61,12 @@ export default function KitchenBoard({
       .on(
         "postgres_changes",
         { event: "*", schema: "public", table: "orders" },
-        () => refetch(),
+        (payload) => {
+          // En cocina suena todo pedido nuevo, también los del PDV.
+          const row = payload.new as { status?: string } | undefined;
+          if (payload.eventType === "INSERT" && row?.status !== "cancelado") sonarRef.current();
+          refetch();
+        },
       )
       .subscribe((status) => {
         setLive(status === "SUBSCRIBED");
@@ -91,18 +103,21 @@ export default function KitchenBoard({
     <div>
       <div className="mb-6 flex items-center justify-between">
         <h1 className="text-2xl font-bold">Cocina</h1>
-        <span
-          className={`flex items-center gap-2 text-xs ${
-            live ? "text-green-600" : "text-black/40 dark:text-white/40"
-          }`}
-        >
+        <div className="flex items-center gap-3">
+          <OrderSoundToggle {...sonido} />
           <span
-            className={`h-2 w-2 rounded-full ${
-              live ? "bg-green-500" : "bg-black/30 dark:bg-white/30"
+            className={`flex items-center gap-2 text-xs ${
+              live ? "text-green-600" : "text-black/40 dark:text-white/40"
             }`}
-          />
-          {live ? "En vivo" : "Conectando…"}
-        </span>
+          >
+            <span
+              className={`h-2 w-2 rounded-full ${
+                live ? "bg-green-500" : "bg-black/30 dark:bg-white/30"
+              }`}
+            />
+            {live ? "En vivo" : "Conectando…"}
+          </span>
+        </div>
       </div>
 
       <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
