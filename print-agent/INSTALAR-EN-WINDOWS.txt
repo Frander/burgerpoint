@@ -86,7 +86,7 @@ COMO FUNCIONA (en corto)
 - El programa se conecta por internet al sistema de pedidos.
 - Cuando un pedido pasa a COCINA, imprime la comanda y el
   ticket del cliente automaticamente.
-- Cada minuto y medio revisa de nuevo, por si se cayo el
+- Cada 20 segundos revisa de nuevo, por si se cayo el
   internet un momento; los pedidos atrasados salen despues.
 - Lleva cuenta de lo que ya imprimio, asi que NO repite
   tickets aunque lo cierres y lo vuelvas a abrir.

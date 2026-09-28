@@ -271,11 +271,24 @@ async function main() {
         const row = payload.new;
         if (!row?.id) return;
         if (!shouldAutoPrint(row)) return;
+        // Deja rastro en la ventana: si un pedido no sale, aquí se ve si al
+        // menos llegó el aviso.
+        const tipo = payload.eventType === "INSERT" ? "nuevo" : "cambió";
+        console.log(`📥 Pedido ${row.code} (${tipo}, ${row.status})`);
         try {
-          const order = await fetchOrder(row.id);
+          let order = await fetchOrder(row.id);
+          // Por si se lee un instante antes de que estén sus productos.
+          if (order && (order.order_items ?? []).length === 0) {
+            await new Promise((r) => setTimeout(r, 1500));
+            order = await fetchOrder(row.id);
+          }
+          if (!order) {
+            console.error(`⚠️  No pude leer el pedido ${row.code}; lo reintenta el barrido.`);
+            return;
+          }
           if (shouldAutoPrint(order)) await printOrder(order);
         } catch (err) {
-          console.error("Error al procesar evento:", err.message);
+          console.error(`Error al procesar ${row.code}:`, err.message);
         }
       },
     )
@@ -312,7 +325,8 @@ async function main() {
       console.log(`Reimpresión: ${status}`);
     });
 
-  // Barrido cada 90s por si Realtime perdió algún evento.
+  // Barrido cada 20 s por si Realtime perdió algún evento: así, aunque se
+  // pierda un aviso, el ticket sale a los pocos segundos y no minutos después.
   setInterval(async () => {
     try {
       const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000).toISOString();
@@ -330,7 +344,7 @@ async function main() {
     } catch (err) {
       console.error("Error en barrido:", err.message);
     }
-  }, 90_000);
+  }, 20_000);
 }
 
 main();
