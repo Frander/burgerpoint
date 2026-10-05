@@ -15,6 +15,44 @@ export type PaymentStatus = "no_pagado" | "pagado";
 export type StaffRole = "admin" | "cajero" | "cocina" | "repartidor";
 export type InventoryMoveType = "entrada" | "salida";
 
+/** Tipo de carne del inventario por porciones (migración 0018). */
+export interface Meat {
+  id: string;
+  name: string;
+  /** Porciones que quedan. Puede ser negativo si se vendió sin capturar la entrada. */
+  stock: number;
+  sort_order: number;
+}
+
+/** Qué carne y cuántas porciones lleva un producto. */
+export interface ProductMeat {
+  product_id: string;
+  meat_id: string;
+  portions: number;
+}
+
+/** Una entrada de carne ("100 porciones el 4 oct"). */
+export interface MeatEntry {
+  id: string;
+  meat_id: string;
+  quantity: number;
+  /** "2026-10-04": día al que corresponde, en hora de Yucatán. */
+  moved_on: string;
+  /** Porciones que había justo después de esta entrada. */
+  stock_after: number | null;
+  created_at: string;
+}
+
+/** Movimientos de carne sumados por día (vista meat_moves_daily). */
+export interface MeatDailyMove {
+  meat_id: string;
+  moved_on: string;
+  type: InventoryMoveType;
+  /** "compra", "venta", "merma". */
+  reason: string;
+  quantity: number;
+}
+
 export interface Category {
   id: string;
   name: string;
