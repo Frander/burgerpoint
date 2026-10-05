@@ -2,12 +2,13 @@
 
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { setCierreManual, setHorario } from "@/app/admin/ajustes/actions";
+import { setCierreManual, setHorario, setPausaDomicilio } from "@/app/admin/ajustes/actions";
 import {
   DIAS,
   cerradoManual,
   describirMomento,
   estaAbierto,
+  finPausaDomicilio,
   lineasHorario,
   siguienteApertura,
   type Horario,
@@ -23,8 +24,11 @@ const ORDEN = [1, 2, 3, 4, 5, 6, 0];
 export default function HorarioManager({
   horario,
   horaActual,
+  domicilioPausadoHasta,
 }: {
   horario: Horario;
+  /** ISO hasta el que están pausados los domicilios; null si hay servicio. */
+  domicilioPausadoHasta: string | null;
   /** "14:05", hora de Yucatán al cargar la página. */
   horaActual: string;
 }) {
@@ -55,6 +59,27 @@ export default function HorarioManager({
     setSaved(false);
     startTransition(async () => {
       const res = await setCierreManual(cerrar);
+      if (res.ok) router.refresh();
+      else setError(res.error ?? "No se pudo cambiar.");
+    });
+  }
+
+  const sinDomicilio = domicilioPausadoHasta !== null;
+
+  function pausaDomicilio(pausar: boolean) {
+    if (
+      pausar &&
+      !confirm(
+        `¿Pausar los domicilios? La web y WhatsApp solo tomarán pedidos para llevar hasta ${describirMomento(
+          finPausaDomicilio(horario),
+        )}. Puedes reactivarlos antes cuando quieras.`,
+      )
+    )
+      return;
+    setError(null);
+    setSaved(false);
+    startTransition(async () => {
+      const res = await setPausaDomicilio(pausar);
       if (res.ok) router.refresh();
       else setError(res.error ?? "No se pudo cambiar.");
     });
@@ -132,6 +157,30 @@ export default function HorarioManager({
           }`}
         >
           {cerradoAMano ? "Abrir de nuevo" : "Cerrar por hoy"}
+        </button>
+      </div>
+
+      <div
+        className={`mt-2 flex flex-wrap items-center justify-between gap-3 rounded-lg px-3 py-2.5 text-sm ${
+          sinDomicilio
+            ? "bg-amber-50 text-amber-900 dark:bg-amber-500/10 dark:text-amber-200"
+            : "bg-black/[.03] dark:bg-white/5"
+        }`}
+      >
+        <span>
+          {sinDomicilio
+            ? `🛵 Domicilios pausados: solo para llevar hasta ${describirMomento(new Date(domicilioPausadoHasta!))}.`
+            : "¿Llueve fuerte o no hay repartidor? Pausa los domicilios; para llevar sigue normal."}
+        </span>
+        <button
+          type="button"
+          onClick={() => pausaDomicilio(!sinDomicilio)}
+          disabled={pending}
+          className={`shrink-0 rounded-md px-3 py-1.5 text-sm font-medium text-white disabled:opacity-50 ${
+            sinDomicilio ? "bg-green-600 hover:bg-green-700" : "bg-amber-600 hover:bg-amber-700"
+          }`}
+        >
+          {sinDomicilio ? "Reactivar domicilios" : "Pausar domicilios"}
         </button>
       </div>
 

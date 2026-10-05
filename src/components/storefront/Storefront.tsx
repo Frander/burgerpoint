@@ -10,12 +10,15 @@ export default function Storefront({
   menu,
   previewMode,
   abierto,
+  sinDomicilio,
   horario,
 }: {
   menu: MenuCategory[];
   previewMode: boolean;
   /** Según el horario de Ajustes, en hora de Yucatán. */
   abierto: boolean;
+  /** Domicilios pausados desde Ajustes o el PDV (lluvia, sin repartidor). */
+  sinDomicilio: boolean;
   /** "Lunes a Viernes: 1:00 pm – 11:00 pm"… (vacío si no hay horario). */
   horario: string[];
 }) {
@@ -71,9 +74,15 @@ export default function Storefront({
                 Cerrado
               </span>
             )}
-            <span className="rounded-full bg-gray-100 px-2.5 py-1 text-gray-700">
-              🛵 Entrega 20 - 35 min.
-            </span>
+            {sinDomicilio ? (
+              <span className="rounded-full bg-amber-50 px-2.5 py-1 text-amber-800">
+                🛵 Sin servicio a domicilio por ahora
+              </span>
+            ) : (
+              <span className="rounded-full bg-gray-100 px-2.5 py-1 text-gray-700">
+                🛵 Entrega 20 - 35 min.
+              </span>
+            )}
             <span className="rounded-full bg-gray-100 px-2.5 py-1 text-gray-700">
               ⭐ 4.6
             </span>
@@ -82,6 +91,14 @@ export default function Storefront({
       </header>
 
       <div className="mx-auto w-full max-w-4xl px-4 pb-28">
+        {abierto && sinDomicilio && (
+          <div className="mb-4 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+            <p className="font-semibold">
+              Por el momento no tenemos servicio a domicilio.
+            </p>
+            <p className="mt-1">Puedes pedir para llevar y pasar por tu pedido.</p>
+          </div>
+        )}
         {!abierto && (
           <div className="mb-4 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-900">
             <p className="font-semibold">

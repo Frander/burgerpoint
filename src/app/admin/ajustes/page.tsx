@@ -4,6 +4,7 @@ import { getCouriers } from "@/lib/couriers";
 import {
   getDefaultCourierId,
   getDeliveryFee,
+  getDeliveryPausedUntil,
   getHorario,
   getLoyaltyConfig,
 } from "@/lib/settings";
@@ -31,12 +32,13 @@ export default async function AjustesPage() {
     );
   }
 
-  const [couriers, defaultCourierId, deliveryFee, loyalty, horario] = await Promise.all([
+  const [couriers, defaultCourierId, deliveryFee, loyalty, horario, pausaDomicilio] = await Promise.all([
     getCouriers(),
     getDefaultCourierId(),
     getDeliveryFee(),
     getLoyaltyConfig(),
     getHorario(),
+    getDeliveryPausedUntil(),
   ]);
 
   return (
@@ -48,7 +50,11 @@ export default async function AjustesPage() {
         loyalty={loyalty}
       />
       <div className="max-w-2xl">
-        <HorarioManager horario={horario} horaActual={horaYucatan()} />
+        <HorarioManager
+          horario={horario}
+          horaActual={horaYucatan()}
+          domicilioPausadoHasta={pausaDomicilio}
+        />
       </div>
     </>
   );

@@ -176,41 +176,69 @@ export async function searchProducts(term: string): Promise<BotProduct[]> {
 }
 
 export interface MenuSnapshot {
-  /** "Categoría: Producto $precio, …" por línea, para el prompt de la IA. */
+  /** Menú por categoría, un producto por renglón con lo que incluye; para el prompt de la IA. */
   texto: string;
-  /** Nombres pedibles (productos) y de opciones, para validar lo que diga la IA. */
+  /** Nombres pedibles (productos), de opciones y de categorías, para validar lo que diga la IA. */
   productos: string[];
   opciones: string[];
+  categorias: string[];
+}
+
+const SIN_MENU: MenuSnapshot = { texto: "", productos: [], opciones: [], categorias: [] };
+
+/** Descripción del producto en un renglón corto (sin emojis ni saltos). */
+function descripcionCorta(descripcion: string | null): string {
+  const limpia = (descripcion ?? "")
+    .replace(/[\p{Extended_Pictographic}\uFE0F\u200D]/gu, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+  return limpia.length > 180 ? `${limpia.slice(0, 180)}…` : limpia;
 }
 
 /**
- * Menú vigente completo en dos consultas. La IA lo recibe en cada turno para
+ * Menú vigente completo en tres consultas. La IA lo recibe en cada turno para
  * que no tenga que adivinar (con solo herramientas llegó a inventar platillos
  * cuando no las llamaba), y el mismo listado sirve para revisar su respuesta.
+ *
+ * Lleva la descripción de cada producto: sin ella el modelo no sabe cuáles
+ * traen papas y bebida, y al preguntarle por "combos" o los niega o los
+ * inventa.
+ *
+ * Si la base falla devuelve el menú vacío y quien llama NO debe usar la IA:
+ * sin menú no tiene de dónde sacar productos ni hay contra qué revisarla.
  */
 export async function menuSnapshot(): Promise<MenuSnapshot> {
   const supabase = createAdminClient();
-  if (!supabase) return { texto: "", productos: [], opciones: [] };
+  if (!supabase) return SIN_MENU;
 
-  const [{ data: categories }, { data: products }, { data: modifiers }] = await Promise.all([
+  const [categoriesRes, productsRes, modifiersRes] = await Promise.all([
     supabase.from("categories").select("*").eq("active", true).order("sort_order"),
     supabase.from("products").select("*").order("sort_order"),
     supabase.from("modifiers").select("name"),
   ]);
+  const fallo = categoriesRes.error ?? productsRes.error ?? modifiersRes.error;
+  if (fallo) {
+    console.error("[whatsapp/ia] no se pudo leer el menú:", fallo.message);
+    return SIN_MENU;
+  }
 
-  const pedibles = ((products ?? []) as Product[]).filter((p) => !isSoldOut(p));
+  const categories = (categoriesRes.data ?? []) as Category[];
+  const pedibles = ((productsRes.data ?? []) as Product[]).filter((p) => !isSoldOut(p));
   const lineas: string[] = [];
-  for (const c of (categories ?? []) as Category[]) {
+  for (const c of categories) {
     const deLaCategoria = pedibles.filter((p) => p.category_id === c.id);
     if (deLaCategoria.length === 0) continue;
-    lineas.push(
-      `${c.name}: ${deLaCategoria.map((p) => `${p.name} $${Number(p.price)}`).join(", ")}`,
-    );
+    lineas.push(`${c.name}:`);
+    for (const p of deLaCategoria) {
+      const descripcion = descripcionCorta(p.description);
+      lineas.push(`- ${p.name} $${Number(p.price)}${descripcion ? ` | ${descripcion}` : ""}`);
+    }
   }
 
   return {
     texto: lineas.join("\n"),
     productos: pedibles.map((p) => p.name),
-    opciones: ((modifiers ?? []) as Pick<Modifier, "name">[]).map((m) => m.name),
+    opciones: ((modifiersRes.data ?? []) as Pick<Modifier, "name">[]).map((m) => m.name),
+    categorias: categories.map((c) => c.name),
   };
 }

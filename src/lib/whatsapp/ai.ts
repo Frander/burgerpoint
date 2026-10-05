@@ -1,7 +1,7 @@
 import "server-only";
 import { formatMoney } from "@/lib/format";
 import { BUSINESS } from "@/lib/business";
-import { getHorario } from "@/lib/settings";
+import { getHorario, sinDomicilioAhora } from "@/lib/settings";
 import { abiertoHasta, hora12, lineasHorario } from "@/lib/hours";
 import {
   getBotProduct,
@@ -192,6 +192,8 @@ REGLAS:
 - WhatsApp usa *un asterisco* para negritas. Nunca uses markdown de otro tipo.
 - Cuando muestres productos, UNO POR RENGLÓN: "• Nombre — $precio". Nunca varios en la misma línea.
 - NUNCA inventes productos, precios ni promociones. Solo existe lo que está en MENÚ VIGENTE (abajo), con esos nombres y precios exactos. Si piden algo que no está, dilo y ofrece lo que sí hay.
+- COMBOS: no hay productos que se llamen "Combo…". Si piden un combo o paquete, ofrece los productos del MENÚ VIGENTE cuya descripción dice que incluyen papas y/o bebida, con su nombre y precio reales, y di lo que incluye cada uno según su descripción. Nunca armes ni nombres un combo por tu cuenta.
+- Qué incluye un producto (papas, bebida, ingredientes, tamaño) lo dice SOLO su descripción en el MENÚ VIGENTE. Si la descripción no lo dice, no lo afirmes. Las bebidas y sabores que existen son únicamente los del menú y sus opciones: no menciones marcas ni sabores que no aparezcan. Antes de decir qué sabores u opciones tiene (o no tiene) un producto, consúltalo con ver_opciones.
 - Si el producto tiene opciones obligatorias, pregúntaselas al cliente antes de agregarlo.
 - No prometas tiempos de entrega ni descuentos.
 - Antes de cerrar necesitas: productos, si es para llevar o a domicilio, el nombre y (si es domicilio) la dirección. Pregunta solo lo que falte, de a una cosa por mensaje.
@@ -202,6 +204,11 @@ REGLAS:
 - Si el cliente quiere pagar por transferencia, dale estos datos tal cual y pídele que mande la foto o captura del comprobante por este chat: CLABE ${BUSINESS.transferencia.clabe}, beneficiario ${BUSINESS.transferencia.beneficiario}, institución ${BUSINESS.transferencia.institucion}.`;
 
 // ---------- ejecución de herramientas ----------
+
+/** Lo que se le devuelve al modelo cuando intenta un domicilio estando pausado. */
+const SIN_DOMICILIO_IA =
+  "ERROR: el servicio a domicilio está PAUSADO en este momento. No lo guardé. " +
+  "Dile al cliente que por ahora no hay servicio a domicilio y pregúntale si lo quiere para llevar (pasa por él).";
 
 /**
  * WhatsApp usa *un* asterisco para negritas y _guion bajo_ para cursivas. El
@@ -396,6 +403,16 @@ async function ejecutar(
     }
 
     case "fijar_datos_entrega": {
+      // Domicilios pausados: no se guarda "delivery" aunque el modelo insista.
+      const sinDomicilio = await sinDomicilioAhora();
+      if (sinDomicilio && (args.tipo === "delivery" || data.type === "delivery")) {
+        data.type = undefined;
+        data.address = undefined;
+        if (typeof args.nombre === "string" && args.nombre.trim().length >= 2) {
+          data.customerName = args.nombre.trim();
+        }
+        return { salida: SIN_DOMICILIO_IA };
+      }
       if (args.tipo === "pickup" || args.tipo === "delivery") data.type = args.tipo;
       if (typeof args.nombre === "string" && args.nombre.trim().length >= 2) {
         data.customerName = args.nombre.trim();
@@ -415,6 +432,11 @@ async function ejecutar(
     case "pedir_confirmacion": {
       const cart = data.cart ?? [];
       if (cart.length === 0) return { salida: "ERROR: el carrito está vacío." };
+      if (data.type === "delivery" && (await sinDomicilioAhora())) {
+        data.type = undefined;
+        data.address = undefined;
+        return { salida: SIN_DOMICILIO_IA };
+      }
       if (!data.type) return { salida: "FALTA: pregúntale si es para llevar o a domicilio." };
       if (!data.customerName) return { salida: "FALTA: pregúntale a nombre de quién." };
       if (data.type === "delivery" && !data.address) {
@@ -446,7 +468,8 @@ async function llamar(mensajes: ChatMessage[]): Promise<ChatMessage | null> {
         model: model(),
         messages: mensajes,
         tools: TOOLS,
-        max_tokens: 500,
+        // Holgado a propósito: con 500 llegó a cortarse a media lista.
+        max_tokens: 1200,
         temperature: 0.3,
       }),
     });
@@ -456,8 +479,17 @@ async function llamar(mensajes: ChatMessage[]): Promise<ChatMessage | null> {
       return null;
     }
 
-    const json = (await res.json()) as { choices?: { message?: ChatMessage }[] };
-    return json.choices?.[0]?.message ?? null;
+    const json = (await res.json()) as {
+      choices?: { message?: ChatMessage; finish_reason?: string }[];
+    };
+    const choice = json.choices?.[0];
+    // Respuesta cortada por el límite: mejor el menú numerado que un mensaje
+    // a medias ("• BP Triple" sin precio).
+    if (choice?.finish_reason === "length") {
+      console.warn("[whatsapp/ia] respuesta cortada por max_tokens");
+      return null;
+    }
+    return choice?.message ?? null;
   } catch (err) {
     console.error("[whatsapp/ia]", (err as Error).message);
     return null;
@@ -489,7 +521,10 @@ const NO_PRODUCTO =
  * cliente, así que se revisa siempre.
  */
 function productosInventados(contenido: string, menu: MenuSnapshot): string[] {
-  const conocidos = [...menu.productos, ...menu.opciones].map(clave).filter(Boolean);
+  // Las categorías cuentan como conocidas: "• Hamburguesas de Res" es del menú.
+  const conocidos = [...menu.productos, ...menu.opciones, ...menu.categorias]
+    .map(clave)
+    .filter(Boolean);
   if (conocidos.length === 0) return []; // sin menú no hay contra qué revisar
 
   // Solo renglones con forma de lista ("• X — $89", "1. X ($89)", "X $89 · Y
@@ -548,7 +583,17 @@ export async function handleWithAI(
     );
   }
 
-  const [menu, horario] = await Promise.all([menuSnapshot(), getHorario()]);
+  const [menu, horario, sinDomicilio] = await Promise.all([
+    menuSnapshot(),
+    getHorario(),
+    sinDomicilioAhora(),
+  ]);
+  contexto.push(
+    sinDomicilio
+      ? "SERVICIO A DOMICILIO: PAUSADO por ahora (no hay repartos en este momento). Solo se toman pedidos PARA LLEVAR. " +
+          "Si piden o preguntan por domicilio, dilo con amabilidad y ofrece para llevar; no digas hasta cuándo ni inventes el motivo."
+      : "SERVICIO A DOMICILIO: disponible.",
+  );
   if (horario.activo) {
     const hasta = abiertoHasta(horario);
     contexto.push(
@@ -557,9 +602,17 @@ export async function handleWithAI(
         " Si preguntan por el horario, dalo tal cual.",
     );
   }
+  // Sin menú (falló la base) el modelo no tiene de dónde sacar productos y
+  // el filtro de inventados no tiene contra qué revisar: así fue como llegó a
+  // ofrecer combos que no existen. Mejor que conteste el menú numerado.
+  if (menu.productos.length === 0) {
+    console.warn("[whatsapp/ia] sin menú vigente: contesta el menú numerado");
+    return null;
+  }
+
   const sistema =
     SYSTEM +
-    (menu.texto ? `\n\nMENÚ VIGENTE (es lo único que existe; nombres y precios exactos):\n${menu.texto}` : "") +
+    `\n\nMENÚ VIGENTE (es lo único que existe; nombres y precios exactos; después de "|" va lo que incluye):\n${menu.texto}` +
     (contexto.length > 0 ? `\n\nESTADO:\n${contexto.join("\n")}` : "");
 
   const mensajes: ChatMessage[] = [

@@ -1,7 +1,13 @@
 import "server-only";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { estaAbierto, mensajeCerrado, normalizarHorario, type Horario } from "@/lib/hours";
+import {
+  domicilioPausado,
+  estaAbierto,
+  mensajeCerrado,
+  normalizarHorario,
+  type Horario,
+} from "@/lib/hours";
 
 /**
  * Ajustes del negocio (tabla `app_settings`, migración 0013).
@@ -25,6 +31,8 @@ export const SETTING_KEYS = {
   businessHours: "business_hours",
   /** "Cerrar por hoy": ISO hasta el que no se toman pedidos. */
   closedUntil: "closed_until",
+  /** "Pausar domicilios": ISO hasta el que no se aceptan pedidos a domicilio. */
+  deliveryPausedUntil: "delivery_paused_until",
 } as const;
 
 /** Valores con los que arranca el programa de puntos si nadie los ha tocado. */
@@ -116,4 +124,18 @@ export async function getHorario(): Promise<Horario> {
 export async function cerradoAhora(): Promise<string | null> {
   const horario = await getHorario();
   return estaAbierto(horario) ? null : mensajeCerrado(horario);
+}
+
+/**
+ * "Pausar domicilios" (lluvia fuerte, sin repartidor): hasta cuándo dura la
+ * pausa (ISO), o null si hay servicio a domicilio.
+ */
+export async function getDeliveryPausedUntil(): Promise<string | null> {
+  const value = await getSetting(SETTING_KEYS.deliveryPausedUntil);
+  return typeof value === "string" && domicilioPausado(value) ? value : null;
+}
+
+/** ¿Está pausado el servicio a domicilio ahora? (web y bot; el PDV solo avisa). */
+export async function sinDomicilioAhora(): Promise<boolean> {
+  return (await getDeliveryPausedUntil()) !== null;
 }

@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { useCart } from "@/components/cart/CartProvider";
 import { formatMoney } from "@/lib/format";
 import { buildOrderMessage, buildWhatsappLink } from "@/lib/whatsapp";
-import { createOrder, getStoreClosedMessage } from "@/app/(public)/actions";
+import { createOrder, getDeliveryPaused, getStoreClosedMessage } from "@/app/(public)/actions";
 import type { OrderType } from "@/lib/types";
 
 interface Confirmation {
@@ -35,6 +35,8 @@ export default function CartDrawer({
   // Mensaje con el horario si está cerrado. Se pregunta al abrir el carrito:
   // la página pudo quedarse abierta desde antes de la hora de cierre.
   const [cerrado, setCerrado] = useState<string | null>(null);
+  // Domicilios pausados (lluvia, sin repartidor): solo queda "Para llevar".
+  const [sinDomicilio, setSinDomicilio] = useState(false);
 
   useEffect(() => {
     if (!open) return;
@@ -42,6 +44,13 @@ export default function CartDrawer({
     getStoreClosedMessage()
       .then((m) => {
         if (vigente) setCerrado(m);
+      })
+      .catch(() => {});
+    getDeliveryPaused()
+      .then((pausado) => {
+        if (!vigente) return;
+        setSinDomicilio(pausado);
+        if (pausado) setType("pickup");
       })
       .catch(() => {});
     return () => {
@@ -250,7 +259,8 @@ export default function CartDrawer({
                         type="button"
                         key={t}
                         onClick={() => setType(t)}
-                        className={`flex-1 rounded-md border px-3 py-2 text-sm font-medium transition-colors ${
+                        disabled={t === "delivery" && sinDomicilio}
+                        className={`flex-1 rounded-md border px-3 py-2 text-sm font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:border-gray-200 ${
                           type === t
                             ? "border-gray-900 bg-gray-900 text-white"
                             : "border-gray-200 text-gray-700 hover:border-gray-400"
@@ -260,6 +270,13 @@ export default function CartDrawer({
                       </button>
                     ))}
                   </div>
+
+                  {sinDomicilio && (
+                    <p className="rounded-lg bg-amber-50 px-3 py-2 text-sm text-amber-900">
+                      Por el momento no tenemos servicio a domicilio. Puedes
+                      pedir para llevar y pasar por tu pedido.
+                    </p>
+                  )}
 
                   {type === "delivery" && (
                     <input

@@ -9,7 +9,7 @@ import {
   type OrderModifierInput,
 } from "@/lib/order-insert";
 import type { OrderType } from "@/lib/types";
-import { cerradoAhora } from "@/lib/settings";
+import { cerradoAhora, sinDomicilioAhora } from "@/lib/settings";
 
 /**
  * Para el carrito: si está cerrado, el mensaje con el horario (sin los
@@ -20,6 +20,12 @@ export async function getStoreClosedMessage(): Promise<string | null> {
   if (!isSupabaseConfigured()) return null;
   const cerrado = await cerradoAhora();
   return cerrado ? cerrado.replace(/\*/g, "") : null;
+}
+
+/** Para el carrito: ¿hay servicio a domicilio ahora? (pausa por lluvia, etc.). */
+export async function getDeliveryPaused(): Promise<boolean> {
+  if (!isSupabaseConfigured()) return false;
+  return sinDomicilioAhora();
 }
 
 export type NewOrderModifier = OrderModifierInput;

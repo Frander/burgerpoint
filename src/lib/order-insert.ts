@@ -11,7 +11,8 @@ import type {
   Product,
 } from "@/lib/types";
 import { isSoldOut } from "@/lib/product";
-import { cerradoAhora, getDeliveryFee } from "@/lib/settings";
+import { cerradoAhora, getDeliveryFee, sinDomicilioAhora } from "@/lib/settings";
+import { MENSAJE_SIN_DOMICILIO } from "@/lib/hours";
 import { checkCoupon, ensureCustomer, markCouponUsed } from "@/lib/loyalty";
 import { notifyNewOrder, notifyOrderConfirmation } from "@/lib/whatsapp/notify";
 
@@ -196,6 +197,10 @@ export async function insertOrder(
   if ((input.origin ?? "web") !== "pdv") {
     const cerrado = await cerradoAhora();
     if (cerrado) return { ok: false, error: cerrado.replace(/\*/g, "") };
+    // Domicilios pausados (Ajustes o PDV): para llevar sí se sigue tomando.
+    if (input.type === "delivery" && (await sinDomicilioAhora())) {
+      return { ok: false, error: MENSAJE_SIN_DOMICILIO.replace(/\*/g, "") };
+    }
   }
 
   const { lines, error: priceErr } = await priceLines(supabase, input.items);

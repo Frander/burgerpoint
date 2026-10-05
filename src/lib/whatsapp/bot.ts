@@ -4,8 +4,8 @@ import { BUSINESS } from "@/lib/business";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { insertOrder } from "@/lib/order-insert";
 // El envío sale del ajuste del negocio: el mismo que cobran la web y el PDV.
-import { cerradoAhora, getDeliveryFee, getHorario } from "@/lib/settings";
-import { mensajeHorario } from "@/lib/hours";
+import { cerradoAhora, getDeliveryFee, getHorario, sinDomicilioAhora } from "@/lib/settings";
+import { MENSAJE_SIN_DOMICILIO, mensajeHorario } from "@/lib/hours";
 import { checkCoupon, getCustomerSummary, redeemCoupon } from "@/lib/loyalty";
 import { notifyNewOrder } from "@/lib/whatsapp/notify";
 import {
@@ -174,6 +174,16 @@ function pantallaProductos(
   };
 }
 
+/** Grupo para quitar ingredientes: todas sus opciones son "Sin algo". */
+function esGrupoDeQuitar(grupo: ModifierGroupWithOptions): boolean {
+  return grupo.modifiers.length > 0 && grupo.modifiers.every((m) => /^sin\s/i.test(m.name.trim()));
+}
+
+/**
+ * Pantalla de un grupo de opciones. En los grupos de quitar ("Sin cebolla"…)
+ * la pregunta va escrita y el "con todo" es la primera opción: con solo el
+ * título "Sin" y la lista, hubo quien marcó lo que SÍ quería que llevara.
+ */
 function pantallaGrupo(
   grupo: ModifierGroupWithOptions,
   nombreProducto: string,
@@ -189,13 +199,28 @@ function pantallaGrupo(
 
   const obligatorio = grupo.min_select >= 1;
   const multiple = grupo.max_select > 1;
+  const varias = multiple ? " Para varias, sepáralas con coma (ej. *1,3*)." : "";
+
+  if (esGrupoDeQuitar(grupo) && !obligatorio) {
+    return (
+      `🍔 *${nombreProducto}*\n*¿Quieres quitarle algo?*\n\n` +
+      `*0.* No, lo quiero *con todo* ✅\n${opciones}\n\n` +
+      `_Responde *0* si va con todo. Marca solo lo que NO quieres que lleve.${varias}_`
+    );
+  }
+
+  if (!obligatorio) {
+    return (
+      `🍔 *${nombreProducto}*\n*${grupo.name}* (opcional)\n\n` +
+      `*0.* Ninguna, así está bien\n${opciones}\n\n` +
+      `_Responde *0* si no quieres ninguna.${varias}_`
+    );
+  }
 
   const regla = multiple
     ? `Puedes elegir hasta ${grupo.max_select}, separadas por coma (ej. *1,3*).`
     : "Elige *una* opción.";
-  const salida = obligatorio ? "" : "\nEscribe *0* si no quieres ninguna.";
-
-  return `🍔 *${nombreProducto}*\n*${grupo.name}*\n\n${opciones}\n\n_${regla}_${salida}`;
+  return `🍔 *${nombreProducto}*\n*${grupo.name}*\n\n${opciones}\n\n_${regla}_`;
 }
 
 /** Siguiente paso tras elegir opciones: otro grupo, o la cantidad. */
@@ -215,9 +240,17 @@ async function siguientePaso(
   const extras = pending.modifiers.reduce((s, m) => s + m.extra_price, 0);
   const precio = pending.basePrice + extras;
 
+  // Lo elegido va a la vista antes de la cantidad: si marcó algo sin querer
+  // lo nota aquí y no hasta el resumen final.
+  const elegido =
+    pending.modifiers.length > 0
+      ? `\n_${pending.modifiers.map((m) => m.name).join(", ")}_`
+      : "";
+
   return {
     mensajes: [
-      `¿Cuántos *${pending.name}* quieres? (${formatMoney(precio)} c/u)\n\nResponde con un número.`,
+      `*${pending.name}*${elegido}\n\n¿*Cuántas piezas* quieres? (${formatMoney(precio)} c/u)\n\n` +
+        "Responde con el número: *1* si es solo una, *2* si son dos…",
     ],
     sesion: ["cantidad", data],
   };
@@ -527,6 +560,11 @@ export async function handleIncoming(
     const respuesta = await handleWithAI(texto, data, perfilNombre, await pedidosActivos(phone));
     if (respuesta) {
       await saveSession(phone, respuesta.state, respuesta.data);
+      // El resumen a confirmar lo arma el código, no el modelo: así lleva el
+      // envío, el total real y la dirección tal como quedó guardada.
+      if (respuesta.state === "confirmar") {
+        return { mensajes: [await resumenFinal(respuesta.data)] };
+      }
       return { mensajes: respuesta.mensajes };
     }
   }
@@ -564,8 +602,15 @@ export async function handleIncoming(
         }
         const pantalla = await pantallaCategorias(data);
         await saveSession(phone, pantalla.sesion[0], pantalla.sesion[1]);
+        // "2 y 4": quiere de dos categorías. Se pide de una en una.
+        const varias = (texto.match(/\d+/g) ?? []).length > 1;
         return {
-          mensajes: ["No entendí esa opción. 🤔", ...pantalla.mensajes],
+          mensajes: [
+            varias
+              ? "Vamos *una categoría a la vez* 🙂 Elige la primera; al agregar tu producto podrás volver por lo demás."
+              : "No entendí esa opción. 🤔",
+            ...pantalla.mensajes,
+          ],
         };
       }
 
@@ -641,7 +686,10 @@ export async function handleIncoming(
         return { mensajes: paso.mensajes };
       }
 
-      const seleccion = parseNumberList(texto);
+      // "con todo", "ninguna", "así está bien"… valen lo mismo que el 0.
+      const seleccion = /^(con todo|todo|normal|ninguna|ninguno|nada|no|asi|asi esta bien|sin cambios)$/.test(cmd)
+        ? [0]
+        : parseNumberList(texto);
       const obligatorio = grupo.min_select >= 1;
 
       // "0" = ninguna, solo si el grupo es opcional.
@@ -759,6 +807,14 @@ export async function handleIncoming(
           return { mensajes: ["Tu carrito está vacío. 🛒", ...pantalla.mensajes] };
         }
         await saveSession(phone, "tipo", data);
+        // Con domicilios pausados se avisa desde la pregunta, no al elegirlo.
+        if (await sinDomicilioAhora()) {
+          return {
+            mensajes: [
+              `${MENSAJE_SIN_DOMICILIO}\n\nResponde *1* para pedirlo para llevar, o *0* para volver al menú.`,
+            ],
+          };
+        }
         return {
           mensajes: [
             "¿Cómo quieres tu pedido?\n\n*1* 🥡 Para llevar (paso por él)\n*2* 🛵 A domicilio",
@@ -776,6 +832,14 @@ export async function handleIncoming(
       if (n !== 1 && n !== 2) {
         return {
           mensajes: ["Responde *1* para llevar o *2* a domicilio."],
+        };
+      }
+
+      if (n === 2 && (await sinDomicilioAhora())) {
+        return {
+          mensajes: [
+            `${MENSAJE_SIN_DOMICILIO}\n\nResponde *1* para pedirlo para llevar, o *0* para volver al menú.`,
+          ],
         };
       }
 
@@ -831,6 +895,19 @@ export async function handleIncoming(
 
       if (!afirma) {
         return { mensajes: [await resumenFinal(data)] };
+      }
+
+      // Eligió domicilio y se pausó antes de que confirmara: conserva el
+      // carrito y solo vuelve a preguntar cómo lo quiere.
+      if (data.type === "delivery" && (await sinDomicilioAhora())) {
+        data.type = undefined;
+        data.address = undefined;
+        await saveSession(phone, "tipo", data);
+        return {
+          mensajes: [
+            `${MENSAJE_SIN_DOMICILIO}\n\nResponde *1* para pedirlo para llevar, o *0* para volver al menú.`,
+          ],
+        };
       }
 
       return await crearPedido(phone, data);

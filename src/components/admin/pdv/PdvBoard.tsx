@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState, useTransition } from "react";
+import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { updateOrderStatus } from "@/app/admin/pedidos/actions";
 import {
@@ -8,6 +9,8 @@ import {
   cancelOrder,
   finalizeOrder,
 } from "@/app/admin/pdv/actions";
+import { setPausaDomicilio } from "@/app/admin/ajustes/actions";
+import { describirMomento } from "@/lib/hours";
 import { formatMoney } from "@/lib/format";
 import {
   ORDER_STATUS_META,
@@ -59,6 +62,7 @@ export default function PdvBoard({
   couriers,
   defaultCourierId,
   deliveryFee,
+  domicilioPausadoHasta,
   initialOrders,
 }: {
   menu: MenuCategory[];
@@ -68,8 +72,12 @@ export default function PdvBoard({
   defaultCourierId: string | null;
   /** Precio de envío configurado en Ajustes. */
   deliveryFee: number;
+  /** ISO hasta el que la web y el bot no toman domicilios; null si hay servicio. */
+  domicilioPausadoHasta: string | null;
   initialOrders: OrderFull[];
 }) {
+  const router = useRouter();
+  const sinDomicilio = domicilioPausadoHasta !== null;
   const defaultCourierName =
     couriers.find((c) => c.id === defaultCourierId)?.name ?? null;
   const [orders, setOrders] = useState<OrderFull[]>(initialOrders);
@@ -146,6 +154,21 @@ export default function PdvBoard({
   for (const o of orders) counts.set(tabOf(o), (counts.get(tabOf(o)) ?? 0) + 1);
   const tabTotal = tabOrders.reduce((sum, o) => sum + Number(o.total), 0);
 
+  // Pausa de domicilios para la web y el bot. El PDV sigue pudiendo levantar
+  // uno: el staff decide si de todos modos lo manda.
+  function cambiarPausaDomicilio() {
+    const pregunta = sinDomicilio
+      ? "¿Reactivar los domicilios? La web y WhatsApp volverán a aceptarlos."
+      : "¿Pausar los domicilios? La web y WhatsApp solo tomarán pedidos para llevar por lo que queda del turno. Puedes reactivarlos cuando quieras.";
+    if (!confirm(pregunta)) return;
+    setError(null);
+    startTransition(async () => {
+      const res = await setPausaDomicilio(!sinDomicilio);
+      if (res.ok) router.refresh();
+      else setError(res.error ?? "No se pudo cambiar.");
+    });
+  }
+
   // Atajos de teclado como OlaClick: Alt+N local, Alt+R llevar, Alt+Y domicilio.
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
@@ -191,6 +214,23 @@ export default function PdvBoard({
         </div>
 
         <div className="flex items-center gap-3">
+          <button
+            type="button"
+            onClick={cambiarPausaDomicilio}
+            disabled={isPending}
+            title={
+              sinDomicilio
+                ? `La web y WhatsApp solo toman pedidos para llevar hasta ${describirMomento(new Date(domicilioPausadoHasta!))}. Toca para reactivar.`
+                : "Pausar los domicilios de la web y WhatsApp (lluvia, sin repartidor)"
+            }
+            className={`rounded-full border px-3 py-1.5 text-xs font-medium disabled:opacity-50 ${
+              sinDomicilio
+                ? "border-amber-400 bg-amber-100 text-amber-900 dark:border-amber-500/50 dark:bg-amber-500/15 dark:text-amber-200"
+                : "border-black/15 text-black/70 hover:bg-black/5 dark:border-white/15 dark:text-white/70 dark:hover:bg-white/10"
+            }`}
+          >
+            {sinDomicilio ? "🛵 Domicilios pausados" : "🛵 Domicilios activos"}
+          </button>
           <OrderSoundToggle {...sonido} />
           <span
             className={`flex items-center gap-1.5 text-xs ${

@@ -1,9 +1,17 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { sectionClient } from "@/lib/supabase/auth";
+import { assertSection, sectionClient } from "@/lib/supabase/auth";
+import { createClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { SETTING_KEYS } from "@/lib/settings";
-import { horaValida, normalizarHorario, siguienteApertura, type Horario } from "@/lib/hours";
+import {
+  finPausaDomicilio,
+  horaValida,
+  normalizarHorario,
+  siguienteApertura,
+  type Horario,
+} from "@/lib/hours";
 
 export interface ActionResult {
   ok: boolean;
@@ -158,7 +166,8 @@ export async function setHorario(horario: Horario): Promise<ActionResult> {
 export async function setCierreManual(cerrar: boolean): Promise<ActionResult> {
   const supabase = await sectionClient("ajustes");
 
-  let value: string | null = null;
+  // Abrir de nuevo guarda "" y no null: la columna `value` no admite nulos.
+  let value = "";
   if (cerrar) {
     const { data } = await supabase
       .from("app_settings")
@@ -176,6 +185,43 @@ export async function setCierreManual(cerrar: boolean): Promise<ActionResult> {
   if (error) return { ok: false, error: error.message };
 
   revalidatePath("/admin/ajustes");
+  revalidatePath("/menu");
+  return { ok: true };
+}
+
+/**
+ * "Pausar domicilios" (lluvia fuerte, sin repartidor): la web y el bot dejan
+ * de aceptar pedidos a domicilio por lo que queda del turno; para llevar sigue
+ * normal. `pausar = false` lo reactiva.
+ *
+ * También lo puede usar la caja desde el PDV: es quien ve llover. Como la
+ * tabla de ajustes solo deja escribir al admin (RLS de 0013), aquí se valida
+ * el permiso y se escribe con la llave de servicio.
+ */
+export async function setPausaDomicilio(pausar: boolean): Promise<ActionResult> {
+  await assertSection("ajustes", "pdv");
+  const supabase = createAdminClient() ?? (await createClient());
+
+  // Reactivar guarda "" y no null: la columna `value` no admite nulos.
+  let value = "";
+  if (pausar) {
+    const { data } = await supabase
+      .from("app_settings")
+      .select("value")
+      .eq("key", SETTING_KEYS.businessHours)
+      .maybeSingle();
+    const horario = normalizarHorario((data as { value: unknown } | null)?.value);
+    value = finPausaDomicilio(horario).toISOString();
+  }
+
+  const { error } = await supabase.from("app_settings").upsert(
+    { key: SETTING_KEYS.deliveryPausedUntil, value, updated_at: new Date().toISOString() },
+    { onConflict: "key" },
+  );
+  if (error) return { ok: false, error: error.message };
+
+  revalidatePath("/admin/ajustes");
+  revalidatePath("/admin/pdv");
   revalidatePath("/menu");
   return { ok: true };
 }

@@ -75,10 +75,19 @@ export function normalizarHorario(value: unknown): Horario {
 }
 
 /** Día de la semana (0 = domingo) y minuto del día, en hora de Yucatán. */
-export function ahoraEnYucatan(now: Date = new Date()): { dia: number; minuto: number; hora: string } {
+export function ahoraEnYucatan(now: Date = new Date()): {
+  dia: number;
+  minuto: number;
+  hora: string;
+  /** "2026-10-04" */
+  fecha: string;
+} {
   const partes = new Intl.DateTimeFormat("en-US", {
     timeZone: TIME_ZONE,
     weekday: "short",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
     hour: "2-digit",
     minute: "2-digit",
     hourCycle: "h23",
@@ -91,6 +100,7 @@ export function ahoraEnYucatan(now: Date = new Date()): { dia: number; minuto: n
     dia,
     minuto: h * 60 + m,
     hora: `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}`,
+    fecha: `${get("year")}-${get("month")}-${get("day")}`,
   };
 }
 
@@ -191,6 +201,31 @@ export function siguienteApertura(horario: Horario, now: Date = new Date()): Dat
   }
   return en(1440 - minuto + 6 * 60);
 }
+
+/**
+ * Hasta cuándo dura "Pausar domicilios": lo que queda del turno en curso. Se
+ * reanuda solo al abrir el siguiente, para que nadie tenga que acordarse de
+ * reactivarlo al otro día. Si se pausa antes de abrir (ya está lloviendo),
+ * cubre el turno que viene, no el rato que falta para abrir.
+ */
+export function finPausaDomicilio(horario: Horario, now: Date = new Date()): Date {
+  // El "Cerrar por hoy" no cuenta: aquí importa el turno del horario semanal.
+  const semanal: Horario = { ...horario, cerradoHasta: null };
+  if (estaAbierto(semanal, now)) return siguienteApertura(semanal, now);
+  const abre = siguienteApertura(semanal, now);
+  return siguienteApertura(semanal, new Date(abre.getTime() + 60_000));
+}
+
+/** ¿Sigue vigente la pausa de domicilios guardada (ISO)? */
+export function domicilioPausado(pausadoHasta: string | null | undefined, now: Date = new Date()): boolean {
+  if (!pausadoHasta) return false;
+  const t = new Date(pausadoHasta).getTime();
+  return Number.isFinite(t) && now.getTime() < t;
+}
+
+/** Aviso al cliente cuando pide a domicilio y está pausado (bot y web). */
+export const MENSAJE_SIN_DOMICILIO =
+  "🛵 Por el momento *no tenemos servicio a domicilio*. Puedes pedir *para llevar* y pasar por tu pedido. 🥡";
 
 /** "mañana a las 6:00 pm", "el viernes a las 1:00 pm" (hora de Yucatán). */
 export function describirMomento(fecha: Date, now: Date = new Date()): string {

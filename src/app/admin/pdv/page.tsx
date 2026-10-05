@@ -3,7 +3,7 @@ import { requireSection } from "@/lib/supabase/auth";
 import { isSupabaseConfigured } from "@/lib/supabase/config";
 import { getMenu } from "@/lib/menu";
 import { getCouriers } from "@/lib/couriers";
-import { getDefaultCourierId, getDeliveryFee } from "@/lib/settings";
+import { getDefaultCourierId, getDeliveryFee, getDeliveryPausedUntil } from "@/lib/settings";
 import type { OrderFull, SalaWithMesas } from "@/lib/types";
 import PdvBoard from "@/components/admin/pdv/PdvBoard";
 
@@ -28,6 +28,7 @@ export default async function PdvPage() {
     couriers,
     defaultCourierId,
     deliveryFee,
+    pausaDomicilio,
     { data: orders },
     { data: salas },
   ] = await Promise.all([
@@ -35,6 +36,7 @@ export default async function PdvPage() {
       getCouriers(),
       getDefaultCourierId(),
       getDeliveryFee(),
+      getDeliveryPausedUntil(),
       supabase
         .from("orders")
         .select("*, order_items(*, order_item_modifiers(*)), order_payments(*)")
@@ -61,6 +63,7 @@ export default async function PdvPage() {
       couriers={couriers}
       defaultCourierId={defaultCourierId}
       deliveryFee={deliveryFee}
+      domicilioPausadoHasta={pausaDomicilio}
       initialOrders={(orders ?? []) as OrderFull[]}
     />
   );
