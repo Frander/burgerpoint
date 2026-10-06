@@ -3,13 +3,68 @@
 Documento para retomar el trabajo en otra sesión. Resume qué está hecho, qué
 falta de tu lado, y los próximos pasos sugeridos.
 
-_Última actualización: 27 sep 2026 (horario de atención y "Cerrar por hoy";
-bot sin duplicados ni productos inventados; pedidos atómicos; confirmar pago
-por transferencia; sonido de pedido nuevo; agente imprime al llegar)_
+_Última actualización: 5 oct 2026 (reporte de envíos corregido; repartidor por
+defecto en todas las pantallas; salchicha y queso cheddar en el inventario por
+porciones, varios ingredientes por producto)_
 
 ---
 
-## 🧾 Bitácora — sesión 25–27 sep 2026 (leer primero)
+## 🧾 Bitácora — sesión 5 oct 2026 (leer primero)
+
+### Hecho y en producción
+Todo empujado a `origin` y `view`; Vercel desplegado. Migraciones **0018 y
+0019 aplicadas** en Supabase.
+
+| Commit | Qué |
+|---|---|
+| `47ea324` | (4 oct, no estaba en bitácora) **Inventario de carnes por porciones** (res y cerdo): entradas con fecha, descuento automático al vender, mermas e historial por día. Migración 0018 |
+| `55fa565` | (4 oct, no estaba en bitácora) **Pausar domicilios** y bot más claro con combos y opciones |
+| `82250b9` | **Reporte de envíos corregido**: solo cuenta pedidos a domicilio y ya no se salta los entregados sin hora de cierre. **Hora de cierre** al marcar entregado/cancelado desde Cocina, Pedidos o el PDV. **Repartidor por defecto** en cualquier pantalla (`defaultCourierPatch` en `src/lib/couriers.ts`). **Salchicha y Queso cheddar** en Inventario y **varios ingredientes por producto**. Migración 0019 |
+
+### Hallazgos de esta sesión
+- **El reporte "Envíos por repartidor" contaba mal por dos lados.** Sumaba
+  como "entrega" cualquier pedido entregado (mesa y para llevar incluidos) y a
+  la vez dejaba fuera más de la mitad de los domicilios: solo veía los que
+  tenían `closed_at`, y esa hora solo la ponían "Finalizar" del PDV y la
+  pantalla del repartidor. Marcar entregado desde Cocina, el historial o el
+  botón "→ Entregado" del PDV (`updateOrderStatus`) no la guardaba. Ejemplo
+  real, domingo 4 oct: decía 17 y eran **13 domicilios** (11 de Valentín).
+  A Valentín le mostraba $75 en octubre cuando eran $175.
+- **El repartidor por defecto solo se aplicaba en el botón "En camino" del
+  PDV** (`assignCourier`). Por "Finalizar" directo, Cocina o el historial el
+  domicilio quedaba sin dueño: no le salía al repartidor ni contaba en su
+  reporte.
+- Los pedidos viejos entregados sin `closed_at` (90) **no se tocaron**: el
+  reporte los cuenta en el día en que se pidieron (`closed_at ?? created_at`).
+- **23 domicilios entregados sin repartidor** (26 sep – 5 oct, $115 de envío)
+  **se dejaron así a propósito**: Frander dijo que no hay problema. Cuentan en
+  los totales del negocio, no en la fila de Valentín. Si algún día se quieren
+  asignar, la consulta es un `update orders set courier_id = …` con
+  `type='delivery' and status='entregado' and courier_id is null`.
+- Las tablas del inventario por porciones siguen llamándose `meats` /
+  `product_meats` / `meat_moves` aunque ya incluyan salchicha y cheddar.
+  `product_meats` ahora tiene llave `(product_id, meat_id)`: una fila por
+  ingrediente; 0 porciones = se borra la fila.
+- Esta sesión no dejó escribir directo en `orders` de producción con la llave
+  de servicio (lo bloqueó el modo de permisos); leer sí. Las migraciones con
+  `supabase db push` pasaron sin problema.
+
+### ⏳ Pendiente
+1. **Probar con un pedido real**: un domicilio entregado desde Cocina o con
+   "Finalizar" debe quedar con Valentín y aparecer en "Envíos por repartidor"
+   con sus $5. No se probó con clic, solo tipos, lint y consultas contra la
+   base.
+2. **Estrenar salchicha y cheddar**: capturar la primera entrada de cada uno y
+   marcar qué productos los llevan (Inventario → "Qué lleva cada producto").
+   Empiezan en 0 y sin productos asignados.
+3. En la pantalla del repartidor, "Entregadas hoy" sigue dependiendo de
+   `closed_at`; los pedidos nuevos ya la traen, los viejos no aparecen ahí.
+4. Siguen vigentes los pendientes 1–6 de la bitácora del 25–27 sep (agente en
+   la PC de la caja, método de pago en Meta, variables de Vercel, etc.).
+
+---
+
+## 🧾 Bitácora anterior — sesión 25–27 sep 2026
 
 ### Hecho y en producción
 Todo empujado a `origin` y `view`; Vercel desplegado. Migraciones **0013–0017
