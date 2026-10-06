@@ -7,6 +7,7 @@ import { assertSection } from "@/lib/supabase/auth";
 import { notifyOrderStatus, notifyPaymentConfirmed } from "@/lib/whatsapp/notify";
 import { getProduct } from "@/lib/menu";
 import { getDefaultCourierId } from "@/lib/settings";
+import { defaultCourierPatch } from "@/lib/couriers";
 import { awardPointsForOrder } from "@/lib/loyalty";
 import {
   insertLines,
@@ -192,7 +193,12 @@ export async function finalizeOrder(orderId: string): Promise<PdvActionResult> {
   const supabase = await createClient();
   const { error } = await supabase
     .from("orders")
-    .update({ status: "entregado", closed_at: new Date().toISOString() })
+    .update({
+      status: "entregado",
+      closed_at: new Date().toISOString(),
+      // Domicilio finalizado sin pasar por "En camino": repartidor por defecto.
+      ...(await defaultCourierPatch(orderId)),
+    })
     .eq("id", orderId);
   if (error) return { ok: false, error: error.message };
   after(async () => {

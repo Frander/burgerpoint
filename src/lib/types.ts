@@ -15,7 +15,7 @@ export type PaymentStatus = "no_pagado" | "pagado";
 export type StaffRole = "admin" | "cajero" | "cocina" | "repartidor";
 export type InventoryMoveType = "entrada" | "salida";
 
-/** Tipo de carne del inventario por porciones (migración 0018). */
+/** Ingrediente del inventario por porciones: res, cerdo, salchicha, cheddar (0018, 0019). */
 export interface Meat {
   id: string;
   name: string;
@@ -24,7 +24,7 @@ export interface Meat {
   sort_order: number;
 }
 
-/** Qué carne y cuántas porciones lleva un producto. */
+/** Cuántas porciones de un ingrediente lleva un producto; un producto puede tener varias filas. */
 export interface ProductMeat {
   product_id: string;
   meat_id: string;

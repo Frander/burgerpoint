@@ -19,7 +19,7 @@ import type {
 
 /** Con estas porciones o menos se avisa que hay que resurtir. */
 const POCAS = 10;
-const PORCIONES = [1, 2, 3, 4];
+const PORCIONES = [0, 1, 2, 3, 4];
 const MESES = ["ene", "feb", "mar", "abr", "may", "jun", "jul", "ago", "sep", "oct", "nov", "dic"];
 
 /** "2026-10-04" → "4 oct". */
@@ -29,9 +29,11 @@ function fechaCorta(fecha: string): string {
 }
 
 /**
- * Inventario → Carnes. Se cuenta en porciones: se captura la entrada ("100 de
- * res el 4 oct") y cada venta descuenta lo que lleva el producto (trigger de
- * la migración 0018). No bloquea ventas: solo lleva la cuenta.
+ * Inventario → Carnes e ingredientes (res, cerdo, salchicha, queso cheddar).
+ * Se cuenta en porciones: se captura la entrada ("100 de res el 4 oct") y cada
+ * venta descuenta lo que lleva el producto (trigger de la migración 0018). Un
+ * producto puede llevar ninguno, uno o varios (0019). No bloquea ventas: solo
+ * lleva la cuenta.
  */
 export default function MeatManager({
   meats,
@@ -66,8 +68,14 @@ export default function MeatManager({
     });
   }
 
-  const porProducto = new Map(productMeats.map((pm) => [pm.product_id, pm]));
-  const nombreCarne = (id: string) => meats.find((m) => m.id === id)?.name ?? "Carne";
+  // Porciones de cada ingrediente por producto: producto → (ingrediente → n).
+  const porProducto = new Map<string, Map<string, number>>();
+  for (const pm of productMeats) {
+    const delProducto = porProducto.get(pm.product_id) ?? new Map<string, number>();
+    delProducto.set(pm.meat_id, pm.portions);
+    porProducto.set(pm.product_id, delProducto);
+  }
+  const nombreCarne = (id: string) => meats.find((m) => m.id === id)?.name ?? "Ingrediente";
 
   // Productos por categoría, en el orden del menú; los sueltos al final.
   const grupos = [
@@ -86,7 +94,7 @@ export default function MeatManager({
   return (
     <div className="space-y-8">
       <section>
-        <h2 className="text-xl font-bold">Carnes</h2>
+        <h2 className="text-xl font-bold">Carnes e ingredientes</h2>
         <p className="mt-1 text-sm text-black/60 dark:text-white/60">
           Por porciones. Captura lo que entra y cada venta descuenta sola lo que
           lleva el producto. Si la cuenta llega a 0 se sigue vendiendo.
@@ -110,9 +118,11 @@ export default function MeatManager({
       </section>
 
       <section>
-        <h3 className="text-lg font-semibold">Cuánta carne lleva cada producto</h3>
+        <h3 className="text-lg font-semibold">Qué lleva cada producto</h3>
         <p className="mt-1 text-sm text-black/60 dark:text-white/60">
-          Aplica a las ventas de aquí en adelante; lo ya vendido no se recalcula.
+          Un producto puede llevar varios a la vez (por ejemplo res, cheddar y
+          salchicha) o ninguno. Aplica a las ventas de aquí en adelante; lo ya
+          vendido no se recalcula.
         </p>
 
         <div className="mt-3 space-y-2">
@@ -127,20 +137,18 @@ export default function MeatManager({
                   <span>{g.name}</span>
                   <span className="text-xs font-normal text-black/50 dark:text-white/50">
                     {conCarne === 0
-                      ? "sin carne"
-                      : `${conCarne} de ${g.products.length} con carne`}
+                      ? "sin configurar"
+                      : `${conCarne} de ${g.products.length} configurados`}
                   </span>
                 </summary>
 
                 <div className="border-t border-black/10 px-3 py-2 dark:border-white/10">
                   <div className="flex flex-wrap items-center justify-between gap-2 rounded-md bg-black/[.03] px-2 py-2 text-xs dark:bg-white/5">
                     <span className="text-black/60 dark:text-white/60">Toda la categoría:</span>
-                    <MeatPicker
+                    <CategoryPicker
                       meats={meats}
-                      value={null}
                       disabled={isPending}
-                      botonAplicar
-                      onChange={(meatId, portions) =>
+                      onApply={(meatId, portions) =>
                         run(() =>
                           setProductMeat(
                             g.products.map((p) => p.id),
@@ -159,14 +167,22 @@ export default function MeatManager({
                         className="flex flex-wrap items-center justify-between gap-2 py-2 text-sm"
                       >
                         <span>{p.name}</span>
-                        <MeatPicker
-                          meats={meats}
-                          value={porProducto.get(p.id) ?? null}
-                          disabled={isPending}
-                          onChange={(meatId, portions) =>
-                            run(() => setProductMeat([p.id], meatId, portions))
-                          }
-                        />
+                        <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5">
+                          {meats.map((m) => (
+                            <label
+                              key={m.id}
+                              className="flex items-center gap-1.5 text-xs text-black/60 dark:text-white/60"
+                            >
+                              {m.name}
+                              <PortionSelect
+                                value={porProducto.get(p.id)?.get(m.id) ?? 0}
+                                disabled={isPending}
+                                label={`${p.name}: porciones de ${m.name}`}
+                                onChange={(n) => run(() => setProductMeat([p.id], m.id, n))}
+                              />
+                            </label>
+                          ))}
+                        </div>
                       </div>
                     ))}
                   </div>
@@ -178,7 +194,7 @@ export default function MeatManager({
       </section>
 
       <section>
-        <h3 className="text-lg font-semibold">Movimientos de carne</h3>
+        <h3 className="text-lg font-semibold">Movimientos</h3>
         {historial.length === 0 ? (
           <p className="mt-2 text-sm text-black/50 dark:text-white/50">
             Todavía no hay movimientos. Empieza capturando una entrada.
@@ -225,7 +241,7 @@ function MeatCard({
   onMove,
 }: {
   meat: Meat;
-  /** La entrada más reciente de esta carne. */
+  /** La entrada más reciente de este ingrediente. */
   ultima: MeatEntry | null;
   hoy: string;
   disabled: boolean;
@@ -312,7 +328,7 @@ function MeatCard({
           type="button"
           disabled={disabled || !qty}
           onClick={() => submit("salida")}
-          title="Carne que se echó a perder o para corregir el conteo"
+          title="Lo que se echó a perder o para corregir el conteo"
           className="rounded-md border border-black/15 px-3 py-1.5 text-sm disabled:opacity-50 dark:border-white/15"
         >
           − Merma / ajuste
@@ -322,79 +338,92 @@ function MeatCard({
   );
 }
 
-/**
- * Carne + porciones de un producto. Guarda al cambiar; con `botonAplicar`
- * (fila de "toda la categoría") espera al botón, porque pisa muchos productos.
- */
-function MeatPicker({
-  meats,
+const CLASE_SELECT =
+  "rounded-md border border-black/15 px-2 py-1.5 text-sm disabled:opacity-50 dark:border-white/15 dark:bg-transparent";
+
+/** Porciones de un ingrediente; 0 = no lo lleva. */
+function PortionSelect({
   value,
   disabled,
-  botonAplicar = false,
+  label,
   onChange,
 }: {
-  meats: Meat[];
-  value: ProductMeat | null;
+  value: number;
   disabled: boolean;
-  botonAplicar?: boolean;
-  onChange: (meatId: string | null, portions: number) => void;
+  label: string;
+  onChange: (portions: number) => void;
 }) {
-  const [draftMeat, setDraftMeat] = useState("");
-  const [draftPortions, setDraftPortions] = useState(1);
+  return (
+    <select
+      value={value}
+      disabled={disabled}
+      aria-label={label}
+      onChange={(e) => onChange(Number(e.target.value))}
+      className={`${CLASE_SELECT} ${value > 0 ? "font-semibold text-black dark:text-white" : ""}`}
+    >
+      {/* Por si en la base hay un valor fuera de la lista. */}
+      {[...new Set([...PORCIONES, value])].sort((a, b) => a - b).map((n) => (
+        <option key={n} value={n}>
+          {n === 0 ? "—" : n}
+        </option>
+      ))}
+    </select>
+  );
+}
 
-  const meatId = botonAplicar ? draftMeat : (value?.meat_id ?? "");
-  const portions = botonAplicar ? draftPortions : (value?.portions ?? 1);
-  const clase =
-    "rounded-md border border-black/15 px-2 py-1.5 text-sm disabled:opacity-50 dark:border-white/15 dark:bg-transparent";
+/**
+ * Fila de "toda la categoría": ingrediente + porciones. Espera al botón porque
+ * pisa muchos productos; solo toca el ingrediente elegido, los demás se quedan.
+ */
+function CategoryPicker({
+  meats,
+  disabled,
+  onApply,
+}: {
+  meats: Meat[];
+  disabled: boolean;
+  onApply: (meatId: string, portions: number) => void;
+}) {
+  const [meatId, setMeatId] = useState("");
+  const [portions, setPortions] = useState(1);
 
   return (
-    <div className="flex items-center gap-2">
+    <div className="flex flex-wrap items-center gap-2">
       <select
         value={meatId}
         disabled={disabled}
-        aria-label="Tipo de carne"
-        onChange={(e) =>
-          botonAplicar ? setDraftMeat(e.target.value) : onChange(e.target.value || null, portions)
-        }
-        className={clase}
+        aria-label="Ingrediente"
+        onChange={(e) => setMeatId(e.target.value)}
+        className={CLASE_SELECT}
       >
-        <option value="">Sin carne</option>
+        <option value="">Elige…</option>
         {meats.map((m) => (
           <option key={m.id} value={m.id}>
             {m.name}
           </option>
         ))}
       </select>
-      {meatId && (
-        <select
-          value={portions}
-          disabled={disabled}
-          aria-label="Porciones"
-          onChange={(e) =>
-            botonAplicar
-              ? setDraftPortions(Number(e.target.value))
-              : onChange(meatId, Number(e.target.value))
-          }
-          className={clase}
-        >
-          {/* Por si en la base hay un valor fuera de la lista. */}
-          {[...new Set([...PORCIONES, portions])].sort((a, b) => a - b).map((n) => (
-            <option key={n} value={n}>
-              {n} {n === 1 ? "carne" : "carnes"}
-            </option>
-          ))}
-        </select>
-      )}
-      {botonAplicar && (
-        <button
-          type="button"
-          disabled={disabled}
-          onClick={() => onChange(draftMeat || null, draftPortions)}
-          className="rounded-md border border-black/15 px-2.5 py-1.5 text-sm disabled:opacity-50 dark:border-white/15"
-        >
-          Aplicar
-        </button>
-      )}
+      <select
+        value={portions}
+        disabled={disabled}
+        aria-label="Porciones"
+        onChange={(e) => setPortions(Number(e.target.value))}
+        className={CLASE_SELECT}
+      >
+        {PORCIONES.map((n) => (
+          <option key={n} value={n}>
+            {n === 0 ? "Quitar" : `${n} ${n === 1 ? "porción" : "porciones"}`}
+          </option>
+        ))}
+      </select>
+      <button
+        type="button"
+        disabled={disabled || !meatId}
+        onClick={() => onApply(meatId, portions)}
+        className="rounded-md border border-black/15 px-2.5 py-1.5 text-sm disabled:opacity-50 dark:border-white/15"
+      >
+        Aplicar
+      </button>
     </div>
   );
 }

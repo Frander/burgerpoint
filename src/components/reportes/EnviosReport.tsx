@@ -46,7 +46,8 @@ function mondayKey(key: string): string {
 
 interface Entrega {
   delivery_fee: number;
-  closed_at: string;
+  created_at: string;
+  closed_at: string | null;
   courier_id: string | null;
 }
 
@@ -70,7 +71,9 @@ function acumular(entregas: Entrega[], hoyKey: string): Totales {
   const porDia = new Map<string, { envios: number; ganado: number }>();
 
   for (const e of entregas) {
-    const key = dayKey(new Date(e.closed_at));
+    // Los pedidos viejos entregados desde cocina no traen hora de cierre; se
+    // cuentan en el día en que se pidieron para no dejarlos fuera.
+    const key = dayKey(new Date(e.closed_at ?? e.created_at));
     const ganado = Number(e.delivery_fee) || 0;
 
     if (key === hoyKey) {
@@ -147,10 +150,12 @@ export default async function EnviosReport({
   const { desde, hoyKey } = ventana();
   let query = supabase
     .from("orders")
-    .select("delivery_fee, closed_at, courier_id")
+    .select("delivery_fee, created_at, closed_at, courier_id")
     .eq("status", "entregado")
-    .not("closed_at", "is", null)
-    .gte("closed_at", desde);
+    // Solo domicilios: un pedido de mesa o para llevar también termina en
+    // "entregado", pero no es un envío.
+    .eq("type", "delivery")
+    .gte("created_at", desde);
   // Las políticas RLS ya encierran al repartidor en sus pedidos; el filtro es
   // para que el admin no vea aquí una mezcla de todos sin querer.
   if (courierId) query = query.eq("courier_id", courierId);
@@ -189,8 +194,8 @@ export default async function EnviosReport({
         </Link>
       </div>
       <p className="mt-1 text-sm text-black/60 dark:text-white/60">
-        Se cuenta el envío de cada pedido entregado, con lo que se cobró en ese
-        pedido.
+        Se cuenta el envío de cada pedido a domicilio entregado, con lo que se
+        cobró en ese pedido.
         {!esRepartidor &&
           " Los totales de arriba son de todo el negocio e incluyen entregas sin repartidor asignado; la tabla reparte solo lo que sí tiene dueño."}
       </p>

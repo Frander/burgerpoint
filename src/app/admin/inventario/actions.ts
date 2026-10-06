@@ -96,27 +96,34 @@ export async function addMeatMove(input: {
 }
 
 /**
- * Qué carne lleva un producto y cuántas porciones. `meatId` vacío = no lleva
- * carne (deja de descontar). Solo afecta las ventas de aquí en adelante.
+ * Cuántas porciones de un ingrediente (res, cerdo, salchicha, cheddar…) lleva
+ * cada producto. Un producto puede llevar varios ingredientes: cada uno se
+ * guarda por separado. `portions` 0 = no lleva ese ingrediente (deja de
+ * descontarlo). Solo afecta las ventas de aquí en adelante.
  */
 export async function setProductMeat(
   productIds: string[],
-  meatId: string | null,
+  meatId: string,
   portions: number,
 ): Promise<ActionResult> {
   if (productIds.length === 0) return { ok: true };
+  if (!meatId) return { ok: false, error: "Elige el ingrediente." };
+  if (!Number.isInteger(portions) || portions < 0 || portions > 10) {
+    return { ok: false, error: "Las porciones deben ser entre 0 y 10." };
+  }
   const supabase = await sectionClient("inventario");
 
-  if (!meatId) {
-    const { error } = await supabase.from("product_meats").delete().in("product_id", productIds);
+  if (portions === 0) {
+    const { error } = await supabase
+      .from("product_meats")
+      .delete()
+      .eq("meat_id", meatId)
+      .in("product_id", productIds);
     if (error) return { ok: false, error: error.message };
   } else {
-    if (!Number.isInteger(portions) || portions < 1 || portions > 10) {
-      return { ok: false, error: "Las porciones deben ser entre 1 y 10." };
-    }
     const { error } = await supabase.from("product_meats").upsert(
       productIds.map((product_id) => ({ product_id, meat_id: meatId, portions })),
-      { onConflict: "product_id" },
+      { onConflict: "product_id,meat_id" },
     );
     if (error) return { ok: false, error: error.message };
   }
