@@ -136,8 +136,16 @@ export async function getBotProduct(
   };
 }
 
-/** Busca por nombre, para cuando el cliente escribe "hamburguesa" en vez de un número. */
-export async function searchProducts(term: string): Promise<BotProduct[]> {
+/**
+ * Busca por nombre, para cuando el cliente escribe "hamburguesa" en vez de un
+ * número. Con `incluirAgotados` también devuelve los agotados (marcados con
+ * `sold_out`): sin ellos, a quien pide uno el bot le contesta "no existe" en
+ * vez de "se nos acabó".
+ */
+export async function searchProducts(
+  term: string,
+  { incluirAgotados = false }: { incluirAgotados?: boolean } = {},
+): Promise<BotProduct[]> {
   const supabase = createAdminClient();
   if (!supabase) return [];
 
@@ -151,7 +159,9 @@ export async function searchProducts(term: string): Promise<BotProduct[]> {
     .order("sort_order")
     .limit(15);
 
-  const rows = ((data ?? []) as Product[]).filter((p) => !isSoldOut(p));
+  const rows = ((data ?? []) as Product[]).filter(
+    (p) => incluirAgotados || !isSoldOut(p),
+  );
   if (rows.length === 0) return [];
 
   const { data: groups } = await supabase
@@ -170,7 +180,7 @@ export async function searchProducts(term: string): Promise<BotProduct[]> {
     name: p.name,
     description: p.description,
     price: Number(p.price),
-    sold_out: false,
+    sold_out: isSoldOut(p),
     has_modifiers: conOpciones.has(p.id),
   }));
 }
@@ -180,11 +190,19 @@ export interface MenuSnapshot {
   texto: string;
   /** Nombres pedibles (productos), de opciones y de categorías, para validar lo que diga la IA. */
   productos: string[];
+  /** Productos que existen pero hoy no se pueden pedir (agotados o sin existencias). */
+  agotados: string[];
   opciones: string[];
   categorias: string[];
 }
 
-const SIN_MENU: MenuSnapshot = { texto: "", productos: [], opciones: [], categorias: [] };
+const SIN_MENU: MenuSnapshot = {
+  texto: "",
+  productos: [],
+  agotados: [],
+  opciones: [],
+  categorias: [],
+};
 
 /** Descripción del producto en un renglón corto (sin emojis ni saltos). */
 function descripcionCorta(descripcion: string | null): string {
@@ -223,7 +241,13 @@ export async function menuSnapshot(): Promise<MenuSnapshot> {
   }
 
   const categories = (categoriesRes.data ?? []) as Category[];
-  const pedibles = ((productsRes.data ?? []) as Product[]).filter((p) => !isSoldOut(p));
+  const todos = (productsRes.data ?? []) as Product[];
+  const pedibles = todos.filter((p) => !isSoldOut(p));
+  // Solo los de categorías activas: una categoría apagada no existe para el cliente.
+  const activas = new Set(categories.map((c) => c.id));
+  const agotados = todos.filter(
+    (p) => isSoldOut(p) && p.category_id && activas.has(p.category_id),
+  );
   const lineas: string[] = [];
   for (const c of categories) {
     const deLaCategoria = pedibles.filter((p) => p.category_id === c.id);
@@ -238,6 +262,7 @@ export async function menuSnapshot(): Promise<MenuSnapshot> {
   return {
     texto: lineas.join("\n"),
     productos: pedibles.map((p) => p.name),
+    agotados: agotados.map((p) => p.name),
     opciones: ((modifiersRes.data ?? []) as Pick<Modifier, "name">[]).map((m) => m.name),
     categorias: categories.map((c) => c.name),
   };

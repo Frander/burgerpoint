@@ -590,7 +590,21 @@ export async function handleIncoming(
 
       if (n === null || n < 1 || n > ids.length) {
         // Quizá escribió el nombre de un platillo en vez de un número.
-        const encontrados = await searchProducts(texto);
+        const resultados = await searchProducts(texto, { incluirAgotados: true });
+        const encontrados = resultados.filter((p) => !p.sold_out);
+        const agotados = resultados.filter((p) => p.sold_out);
+        if (encontrados.length === 0 && agotados.length > 0) {
+          // Lo que pidió existe pero se acabó: decirlo, no "no entendí".
+          const pantalla = await pantallaCategorias(data);
+          await saveSession(phone, pantalla.sesion[0], pantalla.sesion[1]);
+          const nombres = agotados.map((p) => `*${p.name}*`).join(", ");
+          return {
+            mensajes: [
+              `😔 Por hoy se nos acabó: ${nombres}. Elige otra cosa del menú:`,
+              ...pantalla.mensajes,
+            ],
+          };
+        }
         if (encontrados.length > 0) {
           const pantalla = pantallaProductos(
             data,

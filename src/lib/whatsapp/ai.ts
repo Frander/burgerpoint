@@ -192,6 +192,7 @@ REGLAS:
 - WhatsApp usa *un asterisco* para negritas. Nunca uses markdown de otro tipo.
 - Cuando muestres productos, UNO POR RENGLÓN: "• Nombre — $precio". Nunca varios en la misma línea.
 - NUNCA inventes productos, precios ni promociones. Solo existe lo que está en MENÚ VIGENTE (abajo), con esos nombres y precios exactos. Si piden algo que no está, dilo y ofrece lo que sí hay.
+- AGOTADOS: los productos de la lista AGOTADOS HOY existen en el menú pero hoy no se pueden pedir. Si el cliente pide uno, dile que por hoy se nos acabó (no digas que no existe) y ofrécele algo parecido del MENÚ VIGENTE. No los muestres con precio ni los agregues al carrito.
 - COMBOS: no hay productos que se llamen "Combo…". Si piden un combo o paquete, ofrece los productos del MENÚ VIGENTE cuya descripción dice que incluyen papas y/o bebida, con su nombre y precio reales, y di lo que incluye cada uno según su descripción. Nunca armes ni nombres un combo por tu cuenta.
 - Qué incluye un producto (papas, bebida, ingredientes, tamaño) lo dice SOLO su descripción en el MENÚ VIGENTE. Si la descripción no lo dice, no lo afirmes. Las bebidas y sabores que existen son únicamente los del menú y sus opciones: no menciones marcas ni sabores que no aparezcan. Antes de decir qué sabores u opciones tiene (o no tiene) un producto, consúltalo con ver_opciones.
 - Si el producto tiene opciones obligatorias, pregúntaselas al cliente antes de agregarlo.
@@ -245,9 +246,13 @@ function resumenCarrito(cart: CartLine[]): string {
   return `${lineas.join("\n")}\nSubtotal: ${formatMoney(total)}`;
 }
 
-/** Empareja el nombre que dijo el modelo con un producto real. */
+/**
+ * Empareja el nombre que dijo el modelo con un producto real. Incluye los
+ * agotados para que, si pide uno, el error diga "agotado" y no "no existe" (y
+ * para no caer en otro producto que se le parezca).
+ */
 async function resolverProducto(nombre: string) {
-  const encontrados = await searchProducts(nombre);
+  const encontrados = await searchProducts(nombre, { incluirAgotados: true });
   if (encontrados.length === 0) return null;
 
   const limpio = nombre.trim().toLowerCase();
@@ -309,11 +314,17 @@ async function ejecutar(
     }
 
     case "buscar_producto": {
-      const encontrados = await searchProducts(String(args.texto ?? ""));
+      const encontrados = await searchProducts(String(args.texto ?? ""), {
+        incluirAgotados: true,
+      });
       if (encontrados.length === 0) return { salida: "No encontré nada con ese nombre." };
       return {
         salida: encontrados
-          .map((p) => `${p.name} — ${formatMoney(p.price)}${p.has_modifiers ? " (tiene opciones)" : ""}`)
+          .map((p) =>
+            p.sold_out
+              ? `${p.name} — AGOTADO HOY (no se puede pedir; ofrece otra cosa)`
+              : `${p.name} — ${formatMoney(p.price)}${p.has_modifiers ? " (tiene opciones)" : ""}`,
+          )
           .join("\n"),
       };
     }
@@ -322,7 +333,11 @@ async function ejecutar(
       const producto = await resolverProducto(String(args.producto ?? ""));
       if (!producto) return { salida: "No encontré ese producto." };
       const detalle = await getBotProduct(producto.id);
-      if (!detalle) return { salida: "Ese producto no está disponible ahora." };
+      if (!detalle) {
+        return {
+          salida: `${producto.name} está AGOTADO hoy. Díselo al cliente y ofrécele otra cosa del MENÚ VIGENTE.`,
+        };
+      }
       return {
         salida: `${detalle.product.name} — ${formatMoney(detalle.product.price)}\n${describirGrupos(detalle.groups)}`,
       };
@@ -333,7 +348,11 @@ async function ejecutar(
       if (!producto) return { salida: "ERROR: no encontré ese producto en el menú." };
 
       const detalle = await getBotProduct(producto.id);
-      if (!detalle) return { salida: "ERROR: ese producto está agotado." };
+      if (!detalle) {
+        return {
+          salida: `ERROR: ${producto.name} está AGOTADO hoy; no lo agregué. Díselo al cliente y ofrécele otra cosa del MENÚ VIGENTE.`,
+        };
+      }
 
       const cantidad = Math.min(Math.max(Number(args.cantidad ?? 1) || 1, 1), 50);
       const pedidas = (Array.isArray(args.opciones) ? args.opciones : []).map((o) =>
@@ -613,6 +632,9 @@ export async function handleWithAI(
   const sistema =
     SYSTEM +
     `\n\nMENÚ VIGENTE (es lo único que existe; nombres y precios exactos; después de "|" va lo que incluye):\n${menu.texto}` +
+    (menu.agotados.length > 0
+      ? `\n\nAGOTADOS HOY (existen, pero no se pueden pedir ahora): ${menu.agotados.join(", ")}`
+      : "") +
     (contexto.length > 0 ? `\n\nESTADO:\n${contexto.join("\n")}` : "");
 
   const mensajes: ChatMessage[] = [
