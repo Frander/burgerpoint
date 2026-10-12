@@ -3,13 +3,52 @@
 Documento para retomar el trabajo en otra sesión. Resume qué está hecho, qué
 falta de tu lado, y los próximos pasos sugeridos.
 
-_Última actualización: 5 oct 2026 (reporte de envíos corregido; repartidor por
-defecto en todas las pantallas; salchicha y queso cheddar en el inventario por
-porciones, varios ingredientes por producto)_
+_Última actualización: 12 oct 2026 (reporte de envíos con pedidos y envío por
+separado; menú sin botón de agregar cuando está cerrado; el bot avisa de los
+agotados)_
 
 ---
 
-## 🧾 Bitácora — sesión 5 oct 2026 (leer primero)
+## 🧾 Bitácora — sesión 12 oct 2026 (leer primero)
+
+### Hecho y en producción
+Todo empujado a `origin` y `view`; Vercel desplegado (proyecto
+`burgerpoint-view`, el único que hay). **Sin migraciones** esta sesión.
+
+| Commit | Qué |
+|---|---|
+| `e615ab5` | **Reporte de envíos**: además del envío ("ganado") muestra lo de los **pedidos** (`total − delivery_fee`, ya con cupón restado) y el **total cobrado**, por hoy/semana/mes, por día y por repartidor en la tabla del admin |
+| `7376e5c` | **Menú cerrado** (fuera de horario o "Cerrar por hoy"): la tarjeta ya no muestra **+** ni el contador y el detalle deja el botón en "Cerrado — no recibimos pedidos ahora". Antes solo el carrito bloqueaba al enviar |
+| `90ba65c` | **Bot y agotados**: antes los agotados no existían para el bot (fuera del menú de la IA y de la búsqueda) y contestaba "no lo tenemos". Ahora la IA recibe una lista **AGOTADOS HOY** y dice "se nos acabó" + ofrece algo parecido; `searchProducts(…, { incluirAgotados: true })` en `catalog.ts`; el menú numerado contesta "Por hoy se nos acabó: …" si lo que escribió solo coincide con agotados |
+
+### Hallazgos de esta sesión
+- **Qué cuenta como agotado** (`isSoldOut` en `src/lib/product.ts`): el
+  interruptor "Disponible" del producto, o inventario por producto
+  (`track_stock`) en 0. Hoy lo usan Chori Point y Tempura Burguer. El
+  **inventario por porciones (res, cerdo, salchicha, cheddar) NO agota nada**:
+  se intentó y **Frander pidió dejarlo como estaba**. Se descartó sin aplicar
+  ni subir (había una migración 0020 en borrador que se borró). No retomarlo
+  sin que lo pida.
+- El cheddar está en **−57 porciones**: el conteo no está al día.
+- `priceLines` (`order-insert.ts`) **descarta en silencio** las líneas
+  agotadas: si un producto se agota con el carrito ya lleno, el pedido entra
+  sin esa línea y sin avisarle al cliente. No se cambió.
+- Para probar el bot con el negocio cerrado: el simulador
+  (`scripts/whatsapp-bot-sim.mjs`, `WHATSAPP_SIMULATOR=1`) choca con el
+  chequeo de horario de `bot.ts`. Se esquivó con un cambio local temporal que
+  no se subió. Quedaron sesiones de prueba de `5219990000001` y
+  `5219990000002` en la base.
+
+### ⏳ Pendiente
+1. Ver el reporte de envíos de un día conocido y confirmar que cuadran
+   pedidos, envíos y total cobrado.
+2. Con el negocio **abierto**, confirmar que los botones de agregar vuelven
+   a salir en el menú (solo se probó cerrado).
+3. Siguen vigentes los pendientes de la bitácora del 5 oct.
+
+---
+
+## 🧾 Bitácora anterior — sesión 5 oct 2026
 
 ### Hecho y en producción
 Todo empujado a `origin` y `view`; Vercel desplegado. Migraciones **0018 y
