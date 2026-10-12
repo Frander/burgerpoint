@@ -20,8 +20,11 @@ function groupHint(g: ModifierGroupWithOptions): string {
 
 export default function ProductDetail({
   product,
+  abierto,
 }: {
   product: ProductWithModifiers;
+  /** Cerrado (fuera de horario o cierre manual): se ve, pero no se agrega. */
+  abierto: boolean;
 }) {
   const router = useRouter();
   const { addLine } = useCart();
@@ -75,9 +78,10 @@ export default function ProductDetail({
   const unitPrice = product.price + extras;
   const lineTotal = unitPrice * quantity;
   const soldOut = Boolean(product.sold_out);
-  const canAdd = !soldOut && missing.length === 0;
+  const canAdd = abierto && !soldOut && missing.length === 0;
 
   function addButtonLabel(): string {
+    if (!abierto) return "Cerrado — no recibimos pedidos ahora";
     if (soldOut) return "Agotado — no disponible por ahora";
     if (missing.length > 0) return `Falta elegir: ${missing.join(", ")}`;
     return `Agregar ${formatMoney(lineTotal)}`;

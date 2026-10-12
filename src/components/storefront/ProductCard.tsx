@@ -7,7 +7,14 @@ import { useCart } from "@/components/cart/CartProvider";
 import { formatMoney } from "@/lib/format";
 import type { Product } from "@/lib/types";
 
-export default function ProductCard({ product }: { product: Product }) {
+export default function ProductCard({
+  product,
+  abierto,
+}: {
+  product: Product;
+  /** Cerrado (fuera de horario o cierre manual): se ve el menú, no se agrega. */
+  abierto: boolean;
+}) {
   const router = useRouter();
   const { items, addProduct, increment, decrement } = useCart();
   // Línea simple (sin opciones) de este producto.
@@ -66,7 +73,8 @@ export default function ProductCard({ product }: { product: Product }) {
 
   const soldOut = Boolean(product.sold_out);
   // Agotado: se sigue viendo y se puede abrir, pero no se puede agregar.
-  const action = soldOut ? soldOutBadge : (stepper ?? addButton);
+  // Cerrado: tampoco, y sin botón para no invitar a pedir.
+  const action = !abierto ? null : soldOut ? soldOutBadge : (stepper ?? addButton);
 
   return (
     <div className="flex items-start gap-3 py-4">
@@ -112,10 +120,10 @@ export default function ProductCard({ product }: { product: Product }) {
               }`}
             />
           </Link>
-          <div className="absolute -bottom-2 -right-2">{action}</div>
+          {action && <div className="absolute -bottom-2 -right-2">{action}</div>}
         </div>
       ) : (
-        <div className="shrink-0 self-center">{action}</div>
+        action && <div className="shrink-0 self-center">{action}</div>
       )}
     </div>
   );

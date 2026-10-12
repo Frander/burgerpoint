@@ -140,7 +140,11 @@ export default function Storefront({
                   </h2>
                   <div className="mt-2 grid grid-cols-1 gap-x-10 sm:grid-cols-2">
                     {category.products.map((product) => (
-                      <ProductCard key={product.id} product={product} />
+                      <ProductCard
+                        key={product.id}
+                        product={product}
+                        abierto={abierto}
+                      />
                     ))}
                   </div>
                 </section>
