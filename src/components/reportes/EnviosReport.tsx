@@ -5,7 +5,8 @@ import { getCouriers } from "@/lib/couriers";
 import { formatMoney } from "@/lib/format";
 
 /**
- * Reporte de envíos: lo que cada repartidor ganó por sus entregas. Lo usan dos
+ * Reporte de envíos: lo que cada repartidor ganó por sus entregas y, aparte,
+ * cuánto sumaron los pedidos que llevó (sin el envío). Lo usan dos
  * pantallas —la del repartidor (solo lo suyo) y la del admin (todos)— para que
  * cada rol lo vea dentro de su propia interfaz.
  */
@@ -45,17 +46,33 @@ function mondayKey(key: string): string {
 }
 
 interface Entrega {
+  total: number;
   delivery_fee: number;
   created_at: string;
   closed_at: string | null;
   courier_id: string | null;
 }
 
+/** `ganado` es lo de los envíos; `pedidos`, lo de la comida (sin envío). */
+interface Suma {
+  envios: number;
+  ganado: number;
+  pedidos: number;
+}
+
 interface Totales {
-  hoy: { envios: number; ganado: number };
-  semana: { envios: number; ganado: number };
-  mes: { envios: number; ganado: number };
-  porDia: { key: string; envios: number; ganado: number }[];
+  hoy: Suma;
+  semana: Suma;
+  mes: Suma;
+  porDia: ({ key: string } & Suma)[];
+}
+
+const vacia = (): Suma => ({ envios: 0, ganado: 0, pedidos: 0 });
+
+function sumar(s: Suma, ganado: number, pedido: number) {
+  s.envios++;
+  s.ganado += ganado;
+  s.pedidos += pedido;
 }
 
 function acumular(entregas: Entrega[], hoyKey: string): Totales {
@@ -63,33 +80,28 @@ function acumular(entregas: Entrega[], hoyKey: string): Totales {
   const mes = hoyKey.slice(0, 7);
 
   const totales: Totales = {
-    hoy: { envios: 0, ganado: 0 },
-    semana: { envios: 0, ganado: 0 },
-    mes: { envios: 0, ganado: 0 },
+    hoy: vacia(),
+    semana: vacia(),
+    mes: vacia(),
     porDia: [],
   };
-  const porDia = new Map<string, { envios: number; ganado: number }>();
+  const porDia = new Map<string, Suma>();
 
   for (const e of entregas) {
     // Los pedidos viejos entregados desde cocina no traen hora de cierre; se
     // cuentan en el día en que se pidieron para no dejarlos fuera.
     const key = dayKey(new Date(e.closed_at ?? e.created_at));
     const ganado = Number(e.delivery_fee) || 0;
+    // `total` ya trae el envío sumado (y el cupón restado): el pedido como tal
+    // es lo que queda al quitarle el envío.
+    const pedido = Math.max(0, (Number(e.total) || 0) - ganado);
 
-    if (key === hoyKey) {
-      totales.hoy.envios++;
-      totales.hoy.ganado += ganado;
-    }
-    if (key >= lunes && key <= hoyKey) {
-      totales.semana.envios++;
-      totales.semana.ganado += ganado;
-    }
+    if (key === hoyKey) sumar(totales.hoy, ganado, pedido);
+    if (key >= lunes && key <= hoyKey) sumar(totales.semana, ganado, pedido);
     if (key.startsWith(mes)) {
-      totales.mes.envios++;
-      totales.mes.ganado += ganado;
-      const dia = porDia.get(key) ?? { envios: 0, ganado: 0 };
-      dia.envios++;
-      dia.ganado += ganado;
+      sumar(totales.mes, ganado, pedido);
+      const dia = porDia.get(key) ?? vacia();
+      sumar(dia, ganado, pedido);
       porDia.set(key, dia);
     }
   }
@@ -100,23 +112,42 @@ function acumular(entregas: Entrega[], hoyKey: string): Totales {
   return totales;
 }
 
-function Tarjeta({
-  titulo,
-  datos,
-}: {
-  titulo: string;
-  datos: { envios: number; ganado: number };
-}) {
+function Tarjeta({ titulo, datos }: { titulo: string; datos: Suma }) {
   return (
     <div className="rounded-xl border border-black/10 px-4 py-3 dark:border-white/10">
       <p className="text-xs uppercase tracking-wide text-black/50 dark:text-white/50">
-        {titulo}
+        {titulo} · {datos.envios} {datos.envios === 1 ? "entrega" : "entregas"}
       </p>
-      <p className="mt-1 text-2xl font-bold">{formatMoney(datos.ganado)}</p>
-      <p className="text-xs text-black/50 dark:text-white/50">
-        {datos.envios} {datos.envios === 1 ? "entrega" : "entregas"}
-      </p>
+      <dl className="mt-2 space-y-1 text-sm">
+        <div className="flex items-baseline justify-between gap-2">
+          <dt className="text-black/60 dark:text-white/60">Pedidos</dt>
+          <dd className="font-semibold">{formatMoney(datos.pedidos)}</dd>
+        </div>
+        <div className="flex items-baseline justify-between gap-2">
+          <dt className="text-black/60 dark:text-white/60">Envíos</dt>
+          <dd className="text-lg font-bold">{formatMoney(datos.ganado)}</dd>
+        </div>
+        <div className="flex items-baseline justify-between gap-2 border-t border-black/10 pt-1 dark:border-white/10">
+          <dt className="text-black/60 dark:text-white/60">Total cobrado</dt>
+          <dd>{formatMoney(datos.pedidos + datos.ganado)}</dd>
+        </div>
+      </dl>
     </div>
+  );
+}
+
+/** Celda de la tabla del admin: envío arriba, pedidos debajo. */
+function Celda({ datos, fuerte }: { datos: Suma; fuerte?: boolean }) {
+  return (
+    <td className={`py-2 text-right ${fuerte ? "font-medium" : ""}`}>
+      {formatMoney(datos.ganado)}
+      <span className="ml-1 text-xs text-black/40 dark:text-white/40">
+        ({datos.envios})
+      </span>
+      <span className="block text-xs font-normal text-black/50 dark:text-white/50">
+        Pedidos {formatMoney(datos.pedidos)}
+      </span>
+    </td>
   );
 }
 
@@ -150,7 +181,7 @@ export default async function EnviosReport({
   const { desde, hoyKey } = ventana();
   let query = supabase
     .from("orders")
-    .select("delivery_fee, created_at, closed_at, courier_id")
+    .select("total, delivery_fee, created_at, closed_at, courier_id")
     .eq("status", "entregado")
     // Solo domicilios: un pedido de mesa o para llevar también termina en
     // "entregado", pero no es un envío.
@@ -194,8 +225,8 @@ export default async function EnviosReport({
         </Link>
       </div>
       <p className="mt-1 text-sm text-black/60 dark:text-white/60">
-        Se cuenta el envío de cada pedido a domicilio entregado, con lo que se
-        cobró en ese pedido.
+        De cada pedido a domicilio entregado se separa lo del pedido (la comida,
+        ya con descuentos) y lo del envío.
         {!esRepartidor &&
           " Los totales de arriba son de todo el negocio e incluyen entregas sin repartidor asignado; la tabla reparte solo lo que sí tiene dueño."}
       </p>
@@ -219,6 +250,7 @@ export default async function EnviosReport({
                 <thead className="text-left text-xs uppercase tracking-wide text-black/50 dark:text-white/50">
                   <tr>
                     <th className="py-2">Repartidor</th>
+                    {/* Cada celda: envíos (entregas) y debajo los pedidos. */}
                     <th className="py-2 text-right">Hoy</th>
                     <th className="py-2 text-right">Semana</th>
                     <th className="py-2 text-right">Mes</th>
@@ -228,24 +260,9 @@ export default async function EnviosReport({
                   {porRepartidor.map((r) => (
                     <tr key={r.id} className="border-t border-black/5 dark:border-white/10">
                       <td className="py-2">{r.nombre}</td>
-                      <td className="py-2 text-right">
-                        {formatMoney(r.totales.hoy.ganado)}
-                        <span className="ml-1 text-xs text-black/40 dark:text-white/40">
-                          ({r.totales.hoy.envios})
-                        </span>
-                      </td>
-                      <td className="py-2 text-right">
-                        {formatMoney(r.totales.semana.ganado)}
-                        <span className="ml-1 text-xs text-black/40 dark:text-white/40">
-                          ({r.totales.semana.envios})
-                        </span>
-                      </td>
-                      <td className="py-2 text-right font-medium">
-                        {formatMoney(r.totales.mes.ganado)}
-                        <span className="ml-1 text-xs text-black/40 dark:text-white/40">
-                          ({r.totales.mes.envios})
-                        </span>
-                      </td>
+                      <Celda datos={r.totales.hoy} />
+                      <Celda datos={r.totales.semana} />
+                      <Celda datos={r.totales.mes} fuerte />
                     </tr>
                   ))}
                 </tbody>
@@ -268,11 +285,20 @@ export default async function EnviosReport({
                 key={d.key}
                 className="flex items-center justify-between gap-3 rounded-lg border border-black/10 px-3 py-2 text-sm dark:border-white/10"
               >
-                <span className="capitalize">{dayLabel(d.key)}</span>
-                <span className="text-black/50 dark:text-white/50">
-                  {d.envios} {d.envios === 1 ? "entrega" : "entregas"}
+                <span className="min-w-0">
+                  <span className="capitalize">{dayLabel(d.key)}</span>
+                  <span className="block text-xs text-black/50 dark:text-white/50">
+                    {d.envios} {d.envios === 1 ? "entrega" : "entregas"}
+                  </span>
                 </span>
-                <span className="font-medium">{formatMoney(d.ganado)}</span>
+                <span className="text-right">
+                  <span className="block text-xs text-black/50 dark:text-white/50">
+                    Pedidos {formatMoney(d.pedidos)}
+                  </span>
+                  <span className="font-medium">
+                    Envíos {formatMoney(d.ganado)}
+                  </span>
+                </span>
               </li>
             ))}
           </ul>
