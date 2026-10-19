@@ -7,6 +7,9 @@ const supabaseHost = supabaseUrl ? new URL(supabaseUrl).hostname : undefined;
 
 const nextConfig: NextConfig = {
   images: {
+    // Sin optimizador de Vercel: se agotó la cuota del plan y todas las fotos
+    // respondían 402. Se sirven tal cual desde Supabase/OlaClick.
+    unoptimized: true,
     remotePatterns: [
       // CDN de OlaClick: fotos de productos del menú de ejemplo (preview).
       {
