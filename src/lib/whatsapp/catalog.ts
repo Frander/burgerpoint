@@ -204,13 +204,16 @@ const SIN_MENU: MenuSnapshot = {
   categorias: [],
 };
 
-/** Descripción del producto en un renglón corto (sin emojis ni saltos). */
-function descripcionCorta(descripcion: string | null): string {
-  const limpia = (descripcion ?? "")
+/**
+ * Descripción del producto en un solo renglón (sin emojis ni saltos), completa:
+ * en las hamburguesas el "incluye papas" viene al final, y recortarla hacía que
+ * la IA negara que el combo trae papas.
+ */
+function descripcionEnRenglon(descripcion: string | null): string {
+  return (descripcion ?? "")
     .replace(/[\p{Extended_Pictographic}\uFE0F\u200D]/gu, " ")
     .replace(/\s+/g, " ")
     .trim();
-  return limpia.length > 180 ? `${limpia.slice(0, 180)}…` : limpia;
 }
 
 /**
@@ -254,7 +257,7 @@ export async function menuSnapshot(): Promise<MenuSnapshot> {
     if (deLaCategoria.length === 0) continue;
     lineas.push(`${c.name}:`);
     for (const p of deLaCategoria) {
-      const descripcion = descripcionCorta(p.description);
+      const descripcion = descripcionEnRenglon(p.description);
       lineas.push(`- ${p.name} $${Number(p.price)}${descripcion ? ` | ${descripcion}` : ""}`);
     }
   }
