@@ -3,13 +3,53 @@
 Documento para retomar el trabajo en otra sesión. Resume qué está hecho, qué
 falta de tu lado, y los próximos pasos sugeridos.
 
-_Última actualización: 12 oct 2026 (reporte de envíos con pedidos y envío por
-separado; menú sin botón de agregar cuando está cerrado; el bot avisa de los
-agotados)_
+_Última actualización: 19 oct 2026 (fotos del menú servidas directo desde
+Supabase porque se agotó la cuota de imágenes de Vercel; imagen nueva del
+Combo Dogo Point)_
 
 ---
 
-## 🧾 Bitácora — sesión 12 oct 2026 (leer primero)
+## 🧾 Bitácora — sesión 19 oct 2026 (leer primero)
+
+### Hecho y en producción
+Empujado a `origin` y `view`. **El push no disparó deploy**: se desplegó a
+mano con `npx --yes vercel@59.11.7 deploy --prod --yes` (lo corrió Frander;
+el modo auto de Claude bloquea los deploys a producción). **Sin migraciones.**
+
+| Commit | Qué |
+|---|---|
+| `d4b0be5` | (18 oct, sesión aparte) **Bot**: la IA recibe la descripción completa de cada producto (`catalog.ts`) |
+| `b7116d1` | **Imágenes sin optimizador**: `images.unoptimized: true` en `next.config.ts`. Las fotos van directo de Supabase/OlaClick, ya no por `/_next/image` |
+
+Además, sin código: imagen nueva para **Combo Dogo Point** (subida al bucket
+`product-images` y puesta en `products.image_url`). La anterior
+(`7cb23688-….png`) sigue en el bucket.
+
+### Hallazgos de esta sesión
+- **Se agotó la cuota de optimización de imágenes de Vercel** (plan Hobby):
+  `/_next/image` respondía `402 OPTIMIZED_IMAGE_REQUEST_PAYMENT_REQUIRED` y
+  **ninguna foto del menú se veía**, no solo la nueva. Tras el cambio, las 59
+  imágenes de `/menu` responden 200. Contra: las fotos ya no se reducen ni se
+  convierten a WebP, así que pesan más (la del combo, ~390 KB).
+- **`git push` no generó deploy** en Vercel (`vercel ls` seguía mostrando el
+  de hacía 21 h). No se averiguó por qué: puede ser un límite de la cuenta o
+  la conexión con GitHub.
+- Para cambiar la foto de un producto sin el panel: subir con la service role
+  al bucket `product-images` (nombre `uuid.ext`) y actualizar
+  `products.image_url` con la URL pública. El menú es dinámico (`ƒ`): se ve
+  al instante, sin `revalidatePath`.
+
+### ⏳ Pendiente
+1. Revisar en Vercel → *Usage* y *Settings → Git* por qué el push no despliega.
+   Mientras tanto, tras cada push confirmar con `vercel ls` que salió deploy.
+2. Si las fotos pesadas hacen lento el menú en celular: comprimirlas al
+   subirlas (en `src/lib/upload.ts`, en el navegador) en vez de volver al
+   optimizador.
+3. Siguen vigentes los pendientes de las bitácoras del 12 y 5 oct.
+
+---
+
+## 🧾 Bitácora anterior — sesión 12 oct 2026
 
 ### Hecho y en producción
 Todo empujado a `origin` y `view`; Vercel desplegado (proyecto
