@@ -3,13 +3,55 @@
 Documento para retomar el trabajo en otra sesión. Resume qué está hecho, qué
 falta de tu lado, y los próximos pasos sugeridos.
 
-_Última actualización: 19 oct 2026 (fotos del menú servidas directo desde
-Supabase porque se agotó la cuota de imágenes de Vercel; imagen nueva del
-Combo Dogo Point)_
+_Última actualización: 25 oct 2026 (la web deja hacer otro pedido tras
+confirmar uno; el bot reconoce los extras con costo, como las papas de $25
+del Combo Dogo Point)_
 
 ---
 
-## 🧾 Bitácora — sesión 19 oct 2026 (leer primero)
+## 🧾 Bitácora — sesión 25 oct 2026 (leer primero)
+
+### Hecho
+Empujado a `origin` **y a `view`**. **Sin migraciones.**
+
+| Commit | Qué |
+|---|---|
+| `b807c2a` | **Web**: tras confirmar un pedido, cerrar el carrito con la × o tocando afuera dejaba el carrito lleno y la pantalla "¡Pedido listo!" vieja: no había cómo pedir otra vez (clientes reportaron "solo me deja hacer un pedido"). Ahora cerrar ahí da el pedido por terminado. También se limpia el cupón, que hacía fallar el 2.º pedido con "Ese cupón ya se usó" (`CartDrawer.tsx`) |
+| `13361a5` | **Bot**: el menú del prompt lleva los extras con costo de cada producto (`catalog.ts`); regla de combos actualizada (ya existe "Combo Dogo Point"); cómo cambiar opciones de una línea sin duplicarla; `agregar_al_carrito` rechaza opciones que el producto no tiene en vez de ignorarlas en silencio (`ai.ts`) |
+
+### Hallazgos de esta sesión
+- **No hay límite de un pedido por cliente** en ningún lado (ni `insertOrder`
+  ni la base). El "solo me deja uno" era el bug del carrito de arriba. El bot
+  solo le pasa a la IA los pedidos en curso para que no arme uno repetido.
+- **Caso Fabio (+52 1 997 123 3176, 23–24 oct)**: el bot le ofreció las papas
+  extra de $25 del Combo Dogo Point y al pedirlas se las negó ("no tenemos
+  papas de $25", ofreció la orden de $80). Causa: el menú del prompt no traía
+  las opciones; solo las veía si llamaba a `ver_opciones` en ese turno, y el
+  historial no guarda las salidas de las herramientas. En su 2.º pedido, al
+  pedir "sin mostaza", duplicó el combo. Ambos casos y el contrario (papas
+  extra en BP Express / BP Start, que no las tienen) probados en el simulador.
+- Extras con costo hoy (5): Combo Dogo Point → papas +$25; BP Crunch →
+  pepperoni/piña/huevo +$10; Alitas Point → 24pz +$100.
+- El bot no contestó "Es pago con 200, se puede?" (cambio en efectivo): repitió
+  el resumen. **No se arregló.**
+- El push a `origin` solo **no generó deploy** (último en `vercel ls`: hace
+  3 días). Faltaba empujar a `view` (proyecto Vercel `burgerpoint-view`); se
+  empujó después. El 19 oct se empujó a los dos y tampoco desplegó, así que
+  la causa sigue sin averiguar.
+- Simulador del bot: `WHATSAPP_SIMULATOR=1`, `npx next dev -p 3123` con Node 22
+  (`~/.nvm/versions/node/v22.23.2/bin`; el Node 18 por defecto no corre
+  supabase-js) y `SIM_URL=http://localhost:3123 SIM_PHONE=52199900000NN node
+  scripts/whatsapp-bot-sim.mjs "msg1|msg2"`. Deja filas en `wa_sessions`:
+  borrarlas al terminar.
+
+### ⏳ Pendiente
+1. Confirmar que el deploy salió (`vercel ls`); si no, a mano.
+2. Que el bot conteste sobre pago en efectivo y cambio.
+3. Siguen vigentes los pendientes de las bitácoras del 19, 12 y 5 oct.
+
+---
+
+## 🧾 Bitácora anterior — sesión 19 oct 2026
 
 ### Hecho y en producción
 Empujado a `origin` y `view`. **El push no disparó deploy**: se desplegó a
