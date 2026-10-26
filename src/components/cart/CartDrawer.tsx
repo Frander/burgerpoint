@@ -116,8 +116,14 @@ export default function CartDrawer({
     setPhone("");
     setAddress("");
     setNotes("");
+    setCoupon("");
     onClose();
   }
+
+  // Con el pedido ya hecho, cerrar el panel (× o tocar afuera) también lo da
+  // por terminado. Si no, el carrito seguía lleno y al abrirlo otra vez volvía
+  // a salir "¡Pedido listo!" del pedido anterior: no había cómo hacer otro.
+  const cerrar = confirmation ? handleFinish : onClose;
 
   return (
     <div className="fixed inset-0 z-30 flex justify-end">
@@ -125,7 +131,7 @@ export default function CartDrawer({
       <button
         type="button"
         aria-label="Cerrar"
-        onClick={onClose}
+        onClick={cerrar}
         className="absolute inset-0 bg-black/40"
       />
 
@@ -135,7 +141,7 @@ export default function CartDrawer({
           <h2 className="text-lg font-semibold">Tu pedido</h2>
           <button
             type="button"
-            onClick={onClose}
+            onClick={cerrar}
             aria-label="Cerrar"
             className="text-2xl leading-none text-gray-400 transition-colors hover:text-gray-600"
           >
