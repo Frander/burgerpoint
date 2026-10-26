@@ -12,7 +12,7 @@ del Combo Dogo Point)_
 ## 🧾 Bitácora — sesión 25 oct 2026 (leer primero)
 
 ### Hecho
-Empujado a `origin` **y a `view`**. **Sin migraciones.**
+Empujado a `origin` y `view`; **desplegado** (lo disparó el push a `view`). **Sin migraciones.**
 
 | Commit | Qué |
 |---|---|
@@ -34,10 +34,11 @@ Empujado a `origin` **y a `view`**. **Sin migraciones.**
   pepperoni/piña/huevo +$10; Alitas Point → 24pz +$100.
 - El bot no contestó "Es pago con 200, se puede?" (cambio en efectivo): repitió
   el resumen. **No se arregló.**
-- El push a `origin` solo **no generó deploy** (último en `vercel ls`: hace
-  3 días). Faltaba empujar a `view` (proyecto Vercel `burgerpoint-view`); se
-  empujó después. El 19 oct se empujó a los dos y tampoco desplegó, así que
-  la causa sigue sin averiguar.
+- **El deploy lo dispara `view`, no `origin`.** El push a `origin` solo no
+  generó nada en 5 min; en cuanto se empujó a `view` (repo
+  `Frander/burgerpoint-view`, proyecto Vercel `burgerpoint-view`) salió el
+  deploy en segundos. Producción: `burgerpoint-view-y4zk9unl9` (Ready, con
+  `13361a5`).
 - Simulador del bot: `WHATSAPP_SIMULATOR=1`, `npx next dev -p 3123` con Node 22
   (`~/.nvm/versions/node/v22.23.2/bin`; el Node 18 por defecto no corre
   supabase-js) y `SIM_URL=http://localhost:3123 SIM_PHONE=52199900000NN node
@@ -45,9 +46,9 @@ Empujado a `origin` **y a `view`**. **Sin migraciones.**
   borrarlas al terminar.
 
 ### ⏳ Pendiente
-1. Confirmar que el deploy salió (`vercel ls`); si no, a mano.
-2. Que el bot conteste sobre pago en efectivo y cambio.
-3. Siguen vigentes los pendientes de las bitácoras del 19, 12 y 5 oct.
+1. Que el bot conteste sobre pago en efectivo y cambio.
+2. Siguen vigentes los pendientes de las bitácoras del 19, 12 y 5 oct
+   (el del 19 sobre "por qué el push no despliega" ya está resuelto arriba).
 
 ---
 
