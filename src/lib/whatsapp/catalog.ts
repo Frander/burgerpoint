@@ -235,7 +235,7 @@ export async function menuSnapshot(): Promise<MenuSnapshot> {
   const [categoriesRes, productsRes, modifiersRes] = await Promise.all([
     supabase.from("categories").select("*").eq("active", true).order("sort_order"),
     supabase.from("products").select("*").order("sort_order"),
-    supabase.from("modifiers").select("name"),
+    supabase.from("modifiers").select("name, extra_price, product_id"),
   ]);
   const fallo = categoriesRes.error ?? productsRes.error ?? modifiersRes.error;
   if (fallo) {
@@ -251,6 +251,17 @@ export async function menuSnapshot(): Promise<MenuSnapshot> {
   const agotados = todos.filter(
     (p) => isSoldOut(p) && p.category_id && activas.has(p.category_id),
   );
+  // Los extras con costo van junto a su producto: si no, al pedir "las papas
+  // de $25" del combo la IA solo veía la orden de papas de $80 y le negaba al
+  // cliente un extra que ella misma le había ofrecido.
+  const opciones = (modifiersRes.data ?? []) as Pick<Modifier, "name" | "extra_price" | "product_id">[];
+  const extrasDe = new Map<string, string[]>();
+  for (const m of opciones) {
+    if (!m.product_id || Number(m.extra_price) <= 0) continue;
+    const lista = extrasDe.get(m.product_id) ?? [];
+    lista.push(`${m.name} +$${Number(m.extra_price)}`);
+    extrasDe.set(m.product_id, lista);
+  }
   const lineas: string[] = [];
   for (const c of categories) {
     const deLaCategoria = pedibles.filter((p) => p.category_id === c.id);
@@ -258,7 +269,11 @@ export async function menuSnapshot(): Promise<MenuSnapshot> {
     lineas.push(`${c.name}:`);
     for (const p of deLaCategoria) {
       const descripcion = descripcionEnRenglon(p.description);
-      lineas.push(`- ${p.name} $${Number(p.price)}${descripcion ? ` | ${descripcion}` : ""}`);
+      const extras = extrasDe.get(p.id);
+      lineas.push(
+        `- ${p.name} $${Number(p.price)}${descripcion ? ` | ${descripcion}` : ""}` +
+          (extras ? ` | Extras con costo (solo para este producto): ${extras.join(", ")}` : ""),
+      );
     }
   }
 
@@ -266,7 +281,7 @@ export async function menuSnapshot(): Promise<MenuSnapshot> {
     texto: lineas.join("\n"),
     productos: pedibles.map((p) => p.name),
     agotados: agotados.map((p) => p.name),
-    opciones: ((modifiersRes.data ?? []) as Pick<Modifier, "name">[]).map((m) => m.name),
+    opciones: opciones.map((m) => m.name),
     categorias: categories.map((c) => c.name),
   };
 }

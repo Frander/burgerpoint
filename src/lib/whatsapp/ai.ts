@@ -193,7 +193,9 @@ REGLAS:
 - Cuando muestres productos, UNO POR RENGLÓN: "• Nombre — $precio". Nunca varios en la misma línea.
 - NUNCA inventes productos, precios ni promociones. Solo existe lo que está en MENÚ VIGENTE (abajo), con esos nombres y precios exactos. Si piden algo que no está, dilo y ofrece lo que sí hay.
 - AGOTADOS: los productos de la lista AGOTADOS HOY existen en el menú pero hoy no se pueden pedir. Si el cliente pide uno, dile que por hoy se nos acabó (no digas que no existe) y ofrécele algo parecido del MENÚ VIGENTE. No los muestres con precio ni los agregues al carrito.
-- COMBOS: no hay productos que se llamen "Combo…". Si piden un combo o paquete, ofrece los productos del MENÚ VIGENTE cuya descripción dice que incluyen papas y/o bebida, con su nombre y precio reales, y di lo que incluye cada uno según su descripción. Nunca armes ni nombres un combo por tu cuenta.
+- COMBOS: los únicos combos son los productos del MENÚ VIGENTE que se llaman así (por ejemplo "Combo Dogo Point"). Si piden un combo o paquete, ofrece esos y los productos cuya descripción dice que incluyen papas y/o bebida, con su nombre y precio reales, y di lo que incluye cada uno según su descripción. Nunca armes ni nombres un combo por tu cuenta.
+- EXTRAS: algunos productos tienen "Extras con costo" en el MENÚ VIGENTE (por ejemplo papas extra a un precio menor que la orden de papas sola). Son opciones de ESE producto: se agregan con agregar_al_carrito en sus opciones, no como producto aparte, y valen el precio que dice ahí. Si el cliente pide un extra de un producto que lleva en el carrito, revísalo con ver_opciones antes de decir que no existe.
+- CAMBIAR OPCIONES de algo que ya está en el carrito (agregarle un extra, "sin mostaza", otro sabor): quita esa línea con modificar_carrito y vuelve a agregarla con agregar_al_carrito con TODAS sus opciones (las que ya tenía más la nueva). No la agregues otra vez sin quitarla: quedaría duplicada.
 - Qué incluye un producto (papas, bebida, ingredientes, tamaño) lo dice SOLO su descripción en el MENÚ VIGENTE. Si la descripción no lo dice, no lo afirmes. Las bebidas y sabores que existen son únicamente los del menú y sus opciones: no menciones marcas ni sabores que no aparezcan. Antes de decir qué sabores u opciones tiene (o no tiene) un producto, consúltalo con ver_opciones.
 - Si el producto tiene opciones obligatorias, pregúntaselas al cliente antes de agregarlo.
 - No prometas tiempos de entrega ni descuentos.
@@ -358,6 +360,18 @@ async function ejecutar(
       const pedidas = (Array.isArray(args.opciones) ? args.opciones : []).map((o) =>
         String(o).trim().toLowerCase(),
       );
+
+      // Una opción que el producto no tiene (papas extra en una hamburguesa) se
+      // ignoraba en silencio y la IA le decía al cliente que ya la agregó.
+      const existentes = detalle.groups.flatMap((g) => g.modifiers.map((m) => m.name.trim().toLowerCase()));
+      const desconocidas = pedidas.filter((o) => !existentes.includes(o));
+      if (desconocidas.length > 0) {
+        return {
+          salida:
+            `ERROR: ${detalle.product.name} no tiene la opción ${desconocidas.join(", ")}; no lo agregué. ` +
+            `${describirGrupos(detalle.groups)}\nDíselo al cliente: si quiere eso, búscalo como producto aparte en el MENÚ VIGENTE.`,
+        };
+      }
 
       const elegidas: CartLine["modifiers"] = [];
 
